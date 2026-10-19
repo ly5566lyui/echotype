@@ -1,0 +1,11 @@
+/target/
+**/*.rs.bk
+*.log
+.DS_Store
+*.env
+config.local.toml
+data/
+*.db
+*.db-shm
+*.db-wal
+models/

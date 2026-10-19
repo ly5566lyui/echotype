@@ -1,0 +1,906 @@
+import { SettingsWindow } from "settings.slint";
+export { SettingsWindow }
+
+export component FloatingPill inherits Window {
+    title: "WeType Linux";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+    width: 440px;
+    height: show-context-menu ? 300px : (show-drawer ? 340px : 64px);
+
+    in-out property <bool> is-recording: false;
+    in-out property <bool> is-processing: false;
+    in-out property <bool> show-drawer: false;
+    in-out property <bool> show-context-menu: false;
+    in-out property <length> menu-x: 120px;
+    in-out property <length> menu-y: 40px;
+    in-out property <int> active-tab: 0; // 0: 常用语, 1: 剪贴板, 2: 快捷功能坞
+    in-out property <string> title-text: "微信键盘 Linux";
+    in-out property <string> subtitle-text: "按 Ctrl+Alt+V 快捷语音 · 纯 Rust 原生";
+    in-out property <string> duration-text: "00:00";
+    in-out property <[string]> quick-phrases: [
+        "收到，马上处理！",
+        "好的，没问题。",
+        "辛苦了，非常感谢！",
+        "请稍等片刻，马上给您回复。",
+        "微信键盘 Linux 极简模式体验中。"
+    ];
+    in-out property <[string]> clipboard-items: [
+        "https://github.com/ly5566lyui/-wetype-",
+        "微信键盘 Linux 原生体验",
+        "cargo build --release -j 2",
+        "Sherpa-ONNX 离线端侧语音大模型",
+        "Fcitx5 微信绿专属候选栏主题"
+    ];
+
+    callback toggle-recording();
+    callback toggle-drawer();
+    callback switch-tab(int);
+    callback select-phrase(string);
+    callback select-clipboard(string);
+    callback click-tool(int);
+    callback close-window();
+    callback drag-move(length, length);
+    callback open-settings();
+    callback toggle-traditional();
+    callback minimize-to-tray();
+    callback quit-app();
+
+    // 主容器 (官方微信键盘质感圆角药丸胶囊)
+    main-container := Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 32px;
+        background: #1e1e1ef6;
+        border-width: 1.5px;
+        border-color: root.is-recording ? #ff5252 : (root.is-processing ? #23c891 : #ffffff1c);
+        drop-shadow-blur: 20px;
+        drop-shadow-color: root.is-recording ? #ff525255 : (root.is-processing ? #23c89144 : #00000088);
+
+        animate border-color { duration: 200ms; }
+        animate background { duration: 200ms; }
+
+        // 药丸顶栏拖拽与右键感应区 (覆盖顶部 56px 区域)
+        header-drag := TouchArea {
+            x: 0px;
+            y: 0px;
+            width: 100%;
+            height: 56px;
+            mouse-cursor: move;
+            moved => {
+                root.drag-move(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+            }
+            pointer-event(event) => {
+                if event.button == PointerEventButton.right && event.kind == PointerEventKind.up {
+                    root.menu-x = self.mouse-x;
+                    root.menu-y = self.mouse-y;
+                    root.show-context-menu = true;
+                }
+            }
+        }
+
+        VerticalLayout {
+            padding: 9px;
+            padding-left: 14px;
+            padding-right: 14px;
+            spacing: 8px;
+
+            // 药丸顶栏 (始终显示，高度 46px)
+            HorizontalLayout {
+                height: 46px;
+                alignment: center;
+                spacing: 12px;
+
+                // 左侧品牌状态徽标 (嵌入官方微信键盘 Logo)
+                status-orb := Rectangle {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 20px;
+                    background: root.is-recording ? #ff5252 : (root.is-processing ? #23c891 : transparent);
+                    drop-shadow-blur: 8px;
+                    drop-shadow-color: root.is-recording ? #ff525288 : (root.is-processing ? #23c89166 : transparent);
+
+                    animate background { duration: 200ms; }
+
+                    if !root.is-recording && !root.is-processing : Image {
+                        source: @image-url("assets/logo.png");
+                        width: 40px;
+                        height: 40px;
+                    }
+
+                    if root.is-recording : Image {
+                        source: @image-url("assets/wave_white.png");
+                        width: 22px;
+                        height: 22px;
+                        x: 9px;
+                        y: 9px;
+                    }
+
+                    if root.is-processing : Text {
+                        text: "↻";
+                        color: #ffffff;
+                        font-size: 18px;
+                        font-weight: 800;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // 中间文字状态区 (微信键盘标准字重与色彩梯阶)
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 2px;
+                    horizontal-stretch: 1;
+
+                    Text {
+                        text: root.is-recording ? "正在倾听..." : (root.is-processing ? "正在识别语音..." : root.title-text);
+                        color: root.is-recording ? #ff5252 : #ffffff;
+                        font-size: 14px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        text: root.is-recording ? ("离线识别中 " + root.duration-text) : root.subtitle-text;
+                        color: root.is-recording ? #ffb8b8 : #9ca3af;
+                        font-size: 11px;
+                        overflow: elide;
+                    }
+                }
+
+                // 右侧功能操作按钮组
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: center;
+
+                    // 1. 语音录入核心胶囊按钮
+                    voice-btn := Rectangle {
+                        width: root.is-recording ? 76px : 82px;
+                        height: 36px;
+                        border-radius: 18px;
+                        background: root.is-recording ? 
+                            (voice-touch.has-hover ? #e04545 : #ff5252) : 
+                            (voice-touch.has-hover ? #16ac66 : #23c891);
+                        
+                        animate background { duration: 150ms; }
+
+                        HorizontalLayout {
+                            alignment: center;
+                            spacing: 5px;
+
+                            if !root.is-recording : Image {
+                                source: @image-url("assets/mic_white.png");
+                                width: 14px;
+                                height: 14px;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: root.is-recording ? "完成 ✓" : "语音";
+                                color: #ffffff;
+                                font-size: 13px;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        voice-touch := TouchArea {
+                            clicked => { root.toggle-recording(); }
+                        }
+                    }
+
+                    // 2. 常用语/剪贴板抽屉按钮
+                    drawer-btn := Rectangle {
+                        width: 36px;
+                        height: 36px;
+                        border-radius: 18px;
+                        background: root.show-drawer ? #2b333d : (drawer-touch.has-hover ? #2e323b : #252830);
+                        border-width: 1px;
+                        border-color: root.show-drawer ? #23c89166 : transparent;
+
+                        animate background { duration: 150ms; }
+                        animate border-color { duration: 150ms; }
+
+                        Image {
+                            source: root.show-drawer ? @image-url("assets/clipboard_green.png") : @image-url("assets/clipboard_white.png");
+                            width: 18px;
+                            height: 18px;
+                            x: 9px;
+                            y: 9px;
+                        }
+
+                        drawer-touch := TouchArea {
+                            clicked => { root.toggle-drawer(); }
+                        }
+                    }
+
+                    // 3. 关闭/隐藏按钮
+                    close-btn := Rectangle {
+                        width: 30px;
+                        height: 30px;
+                        border-radius: 15px;
+                        background: close-touch.has-hover ? #ff525233 : transparent;
+
+                        animate background { duration: 150ms; }
+
+                        Text {
+                            text: "✕";
+                            color: close-touch.has-hover ? #ff5252 : #9ca3af;
+                            font-size: 13px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        close-touch := TouchArea {
+                            clicked => { root.close-window(); }
+                        }
+                    }
+                }
+            }
+
+            // 抽屉展开区域 (顶部标签页 + 内容区)
+            if root.show-drawer : VerticalLayout {
+                spacing: 8px;
+                padding-top: 2px;
+                padding-bottom: 4px;
+
+                // 分隔线
+                Rectangle {
+                    height: 1px;
+                    background: #ffffff14;
+                }
+
+                // 顶部标签导航栏 (Tab 0: 常用语 | Tab 1: 剪贴板 | Tab 2: 快捷功能坞)
+                HorizontalLayout {
+                    height: 28px;
+                    spacing: 16px;
+                    alignment: start;
+                    padding-left: 6px;
+
+                    // Tab 0: 常用语
+                    tab0 := Rectangle {
+                        width: 74px;
+                        background: transparent;
+
+                        VerticalLayout {
+                            spacing: 3px;
+                            alignment: center;
+
+                            HorizontalLayout {
+                                alignment: center;
+                                spacing: 4px;
+
+                                Image {
+                                    source: root.active-tab == 0 ? @image-url("assets/phrase_green.png") : @image-url("assets/phrase_white.png");
+                                    width: 13px;
+                                    height: 13px;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    text: "常用语";
+                                    color: root.active-tab == 0 ? #23c891 : (tab0-touch.has-hover ? #ffffff : #9ca3af);
+                                    font-size: 12px;
+                                    font-weight: root.active-tab == 0 ? 700 : 500;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            // 微信键盘专属绿色下划线指示条
+                            Rectangle {
+                                height: 2px;
+                                width: 28px;
+                                border-radius: 1px;
+                                background: root.active-tab == 0 ? #23c891 : transparent;
+                            }
+                        }
+
+                        tab0-touch := TouchArea {
+                            clicked => { root.switch-tab(0); }
+                        }
+                    }
+
+                    // Tab 1: 剪贴板
+                    tab1 := Rectangle {
+                        width: 74px;
+                        background: transparent;
+
+                        VerticalLayout {
+                            spacing: 3px;
+                            alignment: center;
+
+                            HorizontalLayout {
+                                alignment: center;
+                                spacing: 4px;
+
+                                Image {
+                                    source: root.active-tab == 1 ? @image-url("assets/clipboard_green.png") : @image-url("assets/clipboard_white.png");
+                                    width: 13px;
+                                    height: 13px;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    text: "剪贴板";
+                                    color: root.active-tab == 1 ? #23c891 : (tab1-touch.has-hover ? #ffffff : #9ca3af);
+                                    font-size: 12px;
+                                    font-weight: root.active-tab == 1 ? 700 : 500;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Rectangle {
+                                height: 2px;
+                                width: 28px;
+                                border-radius: 1px;
+                                background: root.active-tab == 1 ? #23c891 : transparent;
+                            }
+                        }
+
+                        tab1-touch := TouchArea {
+                            clicked => { root.switch-tab(1); }
+                        }
+                    }
+
+                    // Tab 2: 快捷功能坞 (官方 8 格矩阵)
+                    tab2 := Rectangle {
+                        width: 84px;
+                        background: transparent;
+
+                        VerticalLayout {
+                            spacing: 3px;
+                            alignment: center;
+
+                            HorizontalLayout {
+                                alignment: center;
+                                spacing: 4px;
+
+                                Image {
+                                    source: root.active-tab == 2 ? @image-url("assets/keyboard_green.png") : @image-url("assets/keyboard_white.png");
+                                    width: 13px;
+                                    height: 13px;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    text: "快捷功能坞";
+                                    color: root.active-tab == 2 ? #23c891 : (tab2-touch.has-hover ? #ffffff : #9ca3af);
+                                    font-size: 12px;
+                                    font-weight: root.active-tab == 2 ? 700 : 500;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Rectangle {
+                                height: 2px;
+                                width: 36px;
+                                border-radius: 1px;
+                                background: root.active-tab == 2 ? #23c891 : transparent;
+                            }
+                        }
+
+                        tab2-touch := TouchArea {
+                            clicked => { root.switch-tab(2); }
+                        }
+                    }
+                }
+
+                // 选项卡内容区 (高度 ~220px)
+                // 1. Tab 0 内容: 常用语卡片列表
+                if root.active-tab == 0 : VerticalLayout {
+                    spacing: 6px;
+
+                    for phrase[i] in root.quick-phrases : Rectangle {
+                        width: 100%;
+                        height: 34px;
+                        border-radius: 10px;
+                        background: phrase-touch.has-hover ? #2a2d36 : #202020;
+                        border-width: 1px;
+                        border-color: phrase-touch.has-hover ? #23c89155 : #ffffff08;
+
+                        animate background { duration: 120ms; }
+                        animate border-color { duration: 120ms; }
+
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            spacing: 8px;
+                            alignment: center;
+
+                            Text {
+                                text: (i + 1) + ".";
+                                color: phrase-touch.has-hover ? #23c891 : #6b7280;
+                                font-size: 12px;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: phrase;
+                                color: phrase-touch.has-hover ? #ffffff : #d1d5db;
+                                font-size: 12px;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: "上屏 ↵";
+                                color: #23c891;
+                                font-size: 11px;
+                                font-weight: 600;
+                                opacity: phrase-touch.has-hover ? 1.0 : 0.0;
+                                vertical-alignment: center;
+                                animate opacity { duration: 120ms; }
+                            }
+                        }
+
+                        phrase-touch := TouchArea {
+                            clicked => {
+                                root.select-phrase(phrase);
+                            }
+                        }
+                    }
+                }
+
+                // 2. Tab 1 内容: 剪贴板历史卡片列表
+                if root.active-tab == 1 : VerticalLayout {
+                    spacing: 6px;
+
+                    for clip[j] in root.clipboard-items : Rectangle {
+                        width: 100%;
+                        height: 34px;
+                        border-radius: 10px;
+                        background: clip-touch.has-hover ? #2a2d36 : #202020;
+                        border-width: 1px;
+                        border-color: clip-touch.has-hover ? #23c89155 : #ffffff08;
+
+                        animate background { duration: 120ms; }
+                        animate border-color { duration: 120ms; }
+
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            spacing: 8px;
+                            alignment: center;
+
+                            Image {
+                                source: clip-touch.has-hover ? @image-url("assets/clipboard_green.png") : @image-url("assets/clipboard_white.png");
+                                width: 13px;
+                                height: 13px;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: clip;
+                                color: clip-touch.has-hover ? #ffffff : #d1d5db;
+                                font-size: 12px;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: "粘贴 ↵";
+                                color: #23c891;
+                                font-size: 11px;
+                                font-weight: 600;
+                                opacity: clip-touch.has-hover ? 1.0 : 0.0;
+                                vertical-alignment: center;
+                                animate opacity { duration: 120ms; }
+                            }
+                        }
+
+                        clip-touch := TouchArea {
+                            clicked => {
+                                root.select-clipboard(clip);
+                            }
+                        }
+                    }
+                }
+
+                // 3. Tab 2 内容: 微信键盘官方 8 格功能矩阵 (100% 复刻解包 img_clipboard_dark.png)
+                if root.active-tab == 2 : VerticalLayout {
+                    spacing: 8px;
+                    padding-top: 4px;
+
+                    // 第一行 (4 个功能)
+                    HorizontalLayout {
+                        width: 100%;
+                        spacing: 8px;
+
+                        // 功能 1: 语音转文字
+                        grid1 := Rectangle {
+                            width: 96px;
+                            height: 86px;
+                            border-radius: 14px;
+                            background: grid1-touch.has-hover ? #2d323b : #24262b;
+                            border-width: 1px;
+                            border-color: grid1-touch.has-hover ? #23c89177 : #ffffff0d;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 6px;
+
+                                Image {
+                                    source: grid1-touch.has-hover ? @image-url("assets/mic_green.png") : @image-url("assets/mic_white.png");
+                                    width: 24px;
+                                    height: 24px;
+                                    horizontal-alignment: center;
+                                }
+
+                                Text {
+                                    text: "语音转文字";
+                                    color: grid1-touch.has-hover ? #ffffff : #9ca3af;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            grid1-touch := TouchArea {
+                                clicked => { root.click-tool(0); }
+                            }
+                        }
+
+                        // 功能 2: 表情
+                        grid2 := Rectangle {
+                            width: 96px;
+                            height: 86px;
+                            border-radius: 14px;
+                            background: grid2-touch.has-hover ? #2d323b : #24262b;
+                            border-width: 1px;
+                            border-color: grid2-touch.has-hover ? #23c89177 : #ffffff0d;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 6px;
+
+                                Image {
+                                    source: grid2-touch.has-hover ? @image-url("assets/emoji_green.png") : @image-url("assets/emoji_white.png");
+                                    width: 24px;
+                                    height: 24px;
+                                    horizontal-alignment: center;
+                                }
+
+                                Text {
+                                    text: "快捷表情";
+                                    color: grid2-touch.has-hover ? #ffffff : #9ca3af;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            grid2-touch := TouchArea {
+                                clicked => { root.click-tool(1); }
+                            }
+                        }
+
+                        // 功能 3: 键盘选择
+                        grid3 := Rectangle {
+                            width: 96px;
+                            height: 86px;
+                            border-radius: 14px;
+                            background: grid3-touch.has-hover ? #2d323b : #24262b;
+                            border-width: 1px;
+                            border-color: grid3-touch.has-hover ? #23c89177 : #ffffff0d;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 6px;
+
+                                Image {
+                                    source: grid3-touch.has-hover ? @image-url("assets/keyboard_green.png") : @image-url("assets/keyboard_white.png");
+                                    width: 24px;
+                                    height: 24px;
+                                    horizontal-alignment: center;
+                                }
+
+                                Text {
+                                    text: "键盘选择";
+                                    color: grid3-touch.has-hover ? #ffffff : #9ca3af;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            grid3-touch := TouchArea {
+                                clicked => { root.click-tool(2); }
+                            }
+                        }
+
+                        // 功能 4: 边写边译
+                        grid4 := Rectangle {
+                            width: 96px;
+                            height: 86px;
+                            border-radius: 14px;
+                            background: grid4-touch.has-hover ? #2d323b : #24262b;
+                            border-width: 1px;
+                            border-color: grid4-touch.has-hover ? #23c89177 : #ffffff0d;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 6px;
+
+                                Image {
+                                    source: grid4-touch.has-hover ? @image-url("assets/translate_green.png") : @image-url("assets/translate_white.png");
+                                    width: 24px;
+                                    height: 24px;
+                                    horizontal-alignment: center;
+                                }
+
+                                Text {
+                                    text: "边写边译";
+                                    color: grid4-touch.has-hover ? #ffffff : #9ca3af;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            grid4-touch := TouchArea {
+                                clicked => { root.click-tool(3); }
+                            }
+                        }
+                    }
+
+                    // 第二行 (4 个功能)
+                    HorizontalLayout {
+                        width: 100%;
+                        spacing: 8px;
+
+                        // 功能 5: 剪贴板
+                        grid5 := Rectangle {
+                            width: 96px;
+                            height: 86px;
+                            border-radius: 14px;
+                            background: grid5-touch.has-hover ? #2d323b : #24262b;
+                            border-width: 1px;
+                            border-color: grid5-touch.has-hover ? #23c89177 : #ffffff0d;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 6px;
+
+                                Image {
+                                    source: grid5-touch.has-hover ? @image-url("assets/clipboard_green.png") : @image-url("assets/clipboard_white.png");
+                                    width: 24px;
+                                    height: 24px;
+                                    horizontal-alignment: center;
+                                }
+
+                                Text {
+                                    text: "剪贴板";
+                                    color: grid5-touch.has-hover ? #ffffff : #9ca3af;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            grid5-touch := TouchArea {
+                                clicked => { root.click-tool(4); }
+                            }
+                        }
+
+                        // 功能 6: 常用语
+                        grid6 := Rectangle {
+                            width: 96px;
+                            height: 86px;
+                            border-radius: 14px;
+                            background: grid6-touch.has-hover ? #2d323b : #24262b;
+                            border-width: 1px;
+                            border-color: grid6-touch.has-hover ? #23c89177 : #ffffff0d;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 6px;
+
+                                Image {
+                                    source: grid6-touch.has-hover ? @image-url("assets/phrase_green.png") : @image-url("assets/phrase_white.png");
+                                    width: 24px;
+                                    height: 24px;
+                                    horizontal-alignment: center;
+                                }
+
+                                Text {
+                                    text: "常用语";
+                                    color: grid6-touch.has-hover ? #ffffff : #9ca3af;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            grid6-touch := TouchArea {
+                                clicked => { root.click-tool(5); }
+                            }
+                        }
+
+                        // 功能 7: AI 助手
+                        grid7 := Rectangle {
+                            width: 96px;
+                            height: 86px;
+                            border-radius: 14px;
+                            background: grid7-touch.has-hover ? #2d323b : #24262b;
+                            border-width: 1px;
+                            border-color: grid7-touch.has-hover ? #23c89177 : #ffffff0d;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 6px;
+
+                                Image {
+                                    source: grid7-touch.has-hover ? @image-url("assets/ai_green.png") : @image-url("assets/ai_white.png");
+                                    width: 24px;
+                                    height: 24px;
+                                    horizontal-alignment: center;
+                                }
+
+                                Text {
+                                    text: "问 AI";
+                                    color: grid7-touch.has-hover ? #ffffff : #9ca3af;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            grid7-touch := TouchArea {
+                                clicked => { root.click-tool(6); }
+                            }
+                        }
+
+                        // 功能 8: 智能表达 / 润色
+                        grid8 := Rectangle {
+                            width: 96px;
+                            height: 86px;
+                            border-radius: 14px;
+                            background: grid8-touch.has-hover ? #2d323b : #24262b;
+                            border-width: 1px;
+                            border-color: grid8-touch.has-hover ? #23c89177 : #ffffff0d;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 6px;
+
+                                Image {
+                                    source: grid8-touch.has-hover ? @image-url("assets/polish_green.png") : @image-url("assets/polish_white.png");
+                                    width: 24px;
+                                    height: 24px;
+                                    horizontal-alignment: center;
+                                }
+
+                                Text {
+                                    text: "智能表达";
+                                    color: grid8-touch.has-hover ? #ffffff : #9ca3af;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            grid8-touch := TouchArea {
+                                clicked => { root.click-tool(7); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 右键菜单外部点击遮罩
+        if root.show-context-menu : TouchArea {
+            width: 100%;
+            height: 100%;
+            clicked => {
+                root.show-context-menu = false;
+            }
+        }
+
+        // 右键上下文菜单浮层 (官方微信键盘暗色毛玻璃卡片)
+        if root.show-context-menu : Rectangle {
+            x: min(max(root.menu-x - 20px, 12px), 260px);
+            y: min(root.menu-y + 10px, 80px);
+            width: 168px;
+            height: 206px;
+            border-radius: 14px;
+            background: #1e1e1ef8;
+            border-width: 1.5px;
+            border-color: #23c89166;
+            drop-shadow-blur: 16px;
+            drop-shadow-color: #000000bb;
+
+            VerticalLayout {
+                padding: 6px;
+                spacing: 2px;
+
+                // 1. 设置中心
+                Rectangle {
+                    height: 30px;
+                    border-radius: 8px;
+                    background: mi1.has-hover ? #2e323b : transparent;
+                    HorizontalLayout {
+                        padding-left: 10px; spacing: 8px; alignment: center;
+                        Text { text: "⚙️"; font-size: 13px; vertical-alignment: center; }
+                        Text { text: "设置中心..."; color: mi1.has-hover ? #23c891 : #ffffff; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                    }
+                    mi1 := TouchArea { clicked => { root.open-settings(); root.show-context-menu = false; } }
+                }
+
+                // 2. 常用短语
+                Rectangle {
+                    height: 30px;
+                    border-radius: 8px;
+                    background: mi2.has-hover ? #2e323b : transparent;
+                    HorizontalLayout {
+                        padding-left: 10px; spacing: 8px; alignment: center;
+                        Text { text: "📋"; font-size: 13px; vertical-alignment: center; }
+                        Text { text: "常用短语"; color: mi2.has-hover ? #23c891 : #ffffff; font-size: 12px; font-weight: 500; vertical-alignment: center; }
+                    }
+                    mi2 := TouchArea { clicked => { root.show-drawer = true; root.active-tab = 0; root.show-context-menu = false; } }
+                }
+
+                // 3. 剪贴板历史
+                Rectangle {
+                    height: 30px;
+                    border-radius: 8px;
+                    background: mi3.has-hover ? #2e323b : transparent;
+                    HorizontalLayout {
+                        padding-left: 10px; spacing: 8px; alignment: center;
+                        Text { text: "📑"; font-size: 13px; vertical-alignment: center; }
+                        Text { text: "剪贴板历史"; color: mi3.has-hover ? #23c891 : #ffffff; font-size: 12px; font-weight: 500; vertical-alignment: center; }
+                    }
+                    mi3 := TouchArea { clicked => { root.show-drawer = true; root.active-tab = 1; root.show-context-menu = false; } }
+                }
+
+                // 4. 简繁切换
+                Rectangle {
+                    height: 30px;
+                    border-radius: 8px;
+                    background: mi4.has-hover ? #2e323b : transparent;
+                    HorizontalLayout {
+                        padding-left: 10px; spacing: 8px; alignment: center;
+                        Text { text: "🌐"; font-size: 13px; vertical-alignment: center; }
+                        Text { text: "简繁切换"; color: mi4.has-hover ? #23c891 : #ffffff; font-size: 12px; font-weight: 500; vertical-alignment: center; }
+                    }
+                    mi4 := TouchArea { clicked => { root.toggle-traditional(); root.show-context-menu = false; } }
+                }
+
+                // 5. 隐藏到后台
+                Rectangle {
+                    height: 30px;
+                    border-radius: 8px;
+                    background: mi5.has-hover ? #2e323b : transparent;
+                    HorizontalLayout {
+                        padding-left: 10px; spacing: 8px; alignment: center;
+                        Text { text: "👁️"; font-size: 13px; vertical-alignment: center; }
+                        Text { text: "隐藏到后台"; color: mi5.has-hover ? #23c891 : #ffffff; font-size: 12px; font-weight: 500; vertical-alignment: center; }
+                    }
+                    mi5 := TouchArea { clicked => { root.minimize-to-tray(); root.show-context-menu = false; } }
+                }
+
+                // 分隔线
+                Rectangle { height: 1px; background: #ffffff14; }
+
+                // 6. 退出微信键盘
+                Rectangle {
+                    height: 28px;
+                    border-radius: 8px;
+                    background: mi6.has-hover ? #ff525222 : transparent;
+                    HorizontalLayout {
+                        padding-left: 10px; spacing: 8px; alignment: center;
+                        Text { text: "🚪"; font-size: 13px; vertical-alignment: center; }
+                        Text { text: "退出微信键盘"; color: mi6.has-hover ? #ff5252 : #ef4444; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                    }
+                    mi6 := TouchArea { clicked => { root.quit-app(); } }
+                }
+            }
+        }
+    }
+}
+

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=微信键盘助手 (WeType)
+GenericName=Input Method Companion
+Comment=Voice input, quick phrases and clipboard sync for Linux Fcitx5
+Exec=wetype-linux gui
+Icon=input-keyboard
+Terminal=false
+Type=Application
+Categories=Utility;InputMethod;AudioVideo;
+Keywords=ime;fcitx5;speech;voice;clipboard;wetype;wechat;
+StartupNotify=true

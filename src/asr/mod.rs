@@ -1,0 +1,82 @@
+pub mod cloud_api;
+pub mod local_sherpa;
+pub mod recorder;
+
+use crate::config::AsrConfig;
+use anyhow::Result;
+use async_trait::async_trait;
+use cloud_api::CloudAsrEngine;
+use local_sherpa::LocalSherpaEngine;
+use std::path::PathBuf;
+use tracing::{info, warn};
+
+#[async_trait]
+pub trait AsrEngine: Send + Sync {
+    /// 识别 PCM 音频数据 (16kHz, 16bit, 单声道) 并返回识别文本
+    async fn recognize(&self, pcm_data: &[i16]) -> Result<String>;
+    /// 获取当前引擎名称
+    fn name(&self) -> &'static str;
+}
+
+/// 端云混合语音识别调度器：有网且配置了 API Key 时优先走云端，失败或断网时自动降级至本地 Sherpa-ONNX
+pub struct HybridAsrEngine {
+    mode: String,
+    cloud: CloudAsrEngine,
+    local: LocalSherpaEngine,
+}
+
+impl HybridAsrEngine {
+    pub fn from_config(cfg: &AsrConfig) -> Result<Self> {
+        let cloud = CloudAsrEngine::new(
+            cfg.cloud.provider.clone(),
+            cfg.cloud.api_key.clone(),
+            cfg.cloud.endpoint.clone(),
+        );
+        let local = LocalSherpaEngine::new(PathBuf::from(&cfg.local.model_dir))?;
+        Ok(Self {
+            mode: cfg.mode.clone(),
+            cloud,
+            local,
+        })
+    }
+
+    pub fn local_engine(&self) -> &LocalSherpaEngine {
+        &self.local
+    }
+}
+
+#[async_trait]
+impl AsrEngine for HybridAsrEngine {
+    async fn recognize(&self, pcm_data: &[i16]) -> Result<String> {
+        if self.mode == "cloud_only" {
+            return self.cloud.recognize(pcm_data).await;
+        }
+        if self.mode == "local_only" {
+            return self.local.recognize(pcm_data).await;
+        }
+
+        // Hybrid 模式：若云端已配置则优先尝试云端，否则或报错时回退到本地模型
+        if self.cloud.is_configured() {
+            match self.cloud.recognize(pcm_data).await {
+                Ok(text) => {
+                    info!("Cloud ASR succeeded.");
+                    return Ok(text);
+                }
+                Err(e) => {
+                    warn!(
+                        "Cloud ASR failed ({:?}), seamlessly falling back to Local Sherpa-ONNX...",
+                        e
+                    );
+                }
+            }
+        } else {
+            info!("Cloud ASR not configured, using Local Sherpa-ONNX engine.");
+        }
+
+        self.local.recognize(pcm_data).await
+    }
+
+    fn name(&self) -> &'static str {
+        "Hybrid ASR Engine (Cloud + Local Sherpa-ONNX)"
+    }
+}

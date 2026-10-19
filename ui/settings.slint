@@ -1,0 +1,918 @@
+export component SettingsWindow inherits Window {
+    title: "微信键盘 设置";
+    width: 680px;
+    height: 520px;
+    background: #191b1f;
+
+    in-out property <int> active-tab: 0;
+    in-out property <bool> start-hidden: false;
+    in-out property <bool> auto-hide: false;
+    in-out property <bool> allow-drag: true;
+    in-out property <string> voice-shortcut: "Ctrl+Alt+V";
+    in-out property <int> asr-lang: 0; // 0: 普通话, 1: 英语, 2: 粤语
+    in-out property <bool> auto-punctuation: true;
+    in-out property <int> theme-mode: 0; // 0: 深色, 1: 浅色, 2: 跟随系统
+    in-out property <int> candidate-count: 5;
+    in-out property <[string]> phrase-list: [
+        "收到，马上处理！",
+        "好的，没问题。",
+        "辛苦了，非常感谢！",
+        "请稍等片刻，马上给您回复。",
+        "微信键盘 Linux 极简模式体验中。"
+    ];
+
+    callback close-settings();
+    callback save-settings();
+    callback set-shortcut(string);
+    callback toggle-start-hidden();
+    callback toggle-auto-hide();
+    callback toggle-allow-drag();
+    callback set-theme(int);
+    callback set-lang(int);
+
+    VerticalLayout {
+        padding: 0px;
+        spacing: 0px;
+
+        // 顶栏 (官方微信键盘 Header)
+        Rectangle {
+            height: 54px;
+            background: #202227;
+
+            HorizontalLayout {
+                padding-left: 20px;
+                padding-right: 20px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 12px;
+
+                    Image {
+                        source: @image-url("assets/logo.png");
+                        width: 32px;
+                        height: 32px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "微信键盘 设置中心";
+                        color: #ffffff;
+                        font-size: 16px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 58px;
+                        height: 20px;
+                        border-radius: 10px;
+                        background: #23c89122;
+                        border-width: 1px;
+                        border-color: #23c89155;
+
+                        Text {
+                            text: "Linux 原生";
+                            color: #23c891;
+                            font-size: 10px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: close-touch.has-hover ? #ff525233 : transparent;
+
+                        Text {
+                            text: "✕";
+                            color: close-touch.has-hover ? #ff5252 : #9ca3af;
+                            font-size: 14px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        close-touch := TouchArea {
+                            clicked => { root.close-settings(); }
+                        }
+                    }
+                }
+            }
+
+            // 顶栏底部分隔线
+            Rectangle {
+                y: 53px;
+                height: 1px;
+                width: 100%;
+                background: #ffffff12;
+            }
+        }
+
+        // 主体双栏内容
+        HorizontalLayout {
+            // 左侧边栏导航
+            Rectangle {
+                width: 180px;
+                background: #1c1e23;
+
+                // 右侧边线
+                Rectangle {
+                    x: 179px;
+                    width: 1px;
+                    height: 100%;
+                    background: #ffffff0a;
+                }
+
+                VerticalLayout {
+                    padding-top: 16px;
+                    padding-bottom: 16px;
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    spacing: 4px;
+
+                    // Tab 0: 常用与显示
+                    t0 := Rectangle {
+                        height: 40px;
+                        border-radius: 10px;
+                        background: root.active-tab == 0 ? #252830 : (t0-touch.has-hover ? #22252b : transparent);
+
+                        HorizontalLayout {
+                            padding-left: 14px;
+                            alignment: start;
+                            Text {
+                                text: "⚙️ 常用与显示";
+                                color: root.active-tab == 0 ? #ffffff : #9ca3af;
+                                font-size: 13px;
+                                font-weight: root.active-tab == 0 ? 700 : 500;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        if root.active-tab == 0 : Rectangle {
+                            x: 0px;
+                            width: 3px;
+                            height: 24px;
+                            y: 8px;
+                            border-radius: 1.5px;
+                            background: #23c891;
+                        }
+
+                        t0-touch := TouchArea { clicked => { root.active-tab = 0; } }
+                    }
+
+                    // Tab 1: 快捷键设置
+                    t1 := Rectangle {
+                        height: 40px;
+                        border-radius: 10px;
+                        background: root.active-tab == 1 ? #252830 : (t1-touch.has-hover ? #22252b : transparent);
+
+                        HorizontalLayout {
+                            padding-left: 14px;
+                            alignment: start;
+                            Text {
+                                text: "⌨️ 快捷键设置";
+                                color: root.active-tab == 1 ? #ffffff : #9ca3af;
+                                font-size: 13px;
+                                font-weight: root.active-tab == 1 ? 700 : 500;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        if root.active-tab == 1 : Rectangle {
+                            x: 0px;
+                            width: 3px;
+                            height: 24px;
+                            y: 8px;
+                            border-radius: 1.5px;
+                            background: #23c891;
+                        }
+
+                        t1-touch := TouchArea { clicked => { root.active-tab = 1; } }
+                    }
+
+                    // Tab 2: 语音与识别
+                    t2 := Rectangle {
+                        height: 40px;
+                        border-radius: 10px;
+                        background: root.active-tab == 2 ? #252830 : (t2-touch.has-hover ? #22252b : transparent);
+
+                        HorizontalLayout {
+                            padding-left: 14px;
+                            alignment: start;
+                            Text {
+                                text: "🎙️ 语音与识别";
+                                color: root.active-tab == 2 ? #ffffff : #9ca3af;
+                                font-size: 13px;
+                                font-weight: root.active-tab == 2 ? 700 : 500;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        if root.active-tab == 2 : Rectangle {
+                            x: 0px;
+                            width: 3px;
+                            height: 24px;
+                            y: 8px;
+                            border-radius: 1.5px;
+                            background: #23c891;
+                        }
+
+                        t2-touch := TouchArea { clicked => { root.active-tab = 2; } }
+                    }
+
+                    // Tab 3: 外观与皮肤
+                    t3 := Rectangle {
+                        height: 40px;
+                        border-radius: 10px;
+                        background: root.active-tab == 3 ? #252830 : (t3-touch.has-hover ? #22252b : transparent);
+
+                        HorizontalLayout {
+                            padding-left: 14px;
+                            alignment: start;
+                            Text {
+                                text: "🎨 外观与主题";
+                                color: root.active-tab == 3 ? #ffffff : #9ca3af;
+                                font-size: 13px;
+                                font-weight: root.active-tab == 3 ? 700 : 500;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        if root.active-tab == 3 : Rectangle {
+                            x: 0px;
+                            width: 3px;
+                            height: 24px;
+                            y: 8px;
+                            border-radius: 1.5px;
+                            background: #23c891;
+                        }
+
+                        t3-touch := TouchArea { clicked => { root.active-tab = 3; } }
+                    }
+
+                    // Tab 4: 常用短语管理
+                    t4 := Rectangle {
+                        height: 40px;
+                        border-radius: 10px;
+                        background: root.active-tab == 4 ? #252830 : (t4-touch.has-hover ? #22252b : transparent);
+
+                        HorizontalLayout {
+                            padding-left: 14px;
+                            alignment: start;
+                            Text {
+                                text: "📋 常用短语";
+                                color: root.active-tab == 4 ? #ffffff : #9ca3af;
+                                font-size: 13px;
+                                font-weight: root.active-tab == 4 ? 700 : 500;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        if root.active-tab == 4 : Rectangle {
+                            x: 0px;
+                            width: 3px;
+                            height: 24px;
+                            y: 8px;
+                            border-radius: 1.5px;
+                            background: #23c891;
+                        }
+
+                        t4-touch := TouchArea { clicked => { root.active-tab = 4; } }
+                    }
+
+                    // Tab 5: 关于微信键盘
+                    t5 := Rectangle {
+                        height: 40px;
+                        border-radius: 10px;
+                        background: root.active-tab == 5 ? #252830 : (t5-touch.has-hover ? #22252b : transparent);
+
+                        HorizontalLayout {
+                            padding-left: 14px;
+                            alignment: start;
+                            Text {
+                                text: "ℹ️ 关于我们";
+                                color: root.active-tab == 5 ? #ffffff : #9ca3af;
+                                font-size: 13px;
+                                font-weight: root.active-tab == 5 ? 700 : 500;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        if root.active-tab == 5 : Rectangle {
+                            x: 0px;
+                            width: 3px;
+                            height: 24px;
+                            y: 8px;
+                            border-radius: 1.5px;
+                            background: #23c891;
+                        }
+
+                        t5-touch := TouchArea { clicked => { root.active-tab = 5; } }
+                    }
+                }
+            }
+
+            // 右侧主体配置区
+            Rectangle {
+                background: #191b1f;
+
+                VerticalLayout {
+                    padding: 24px;
+
+                // 1. Tab 0: 常用与显示
+                if root.active-tab == 0 : VerticalLayout {
+                    spacing: 16px;
+
+                    Text {
+                        text: "常用与显示偏好";
+                        color: #ffffff;
+                        font-size: 18px;
+                        font-weight: 700;
+                    }
+
+                    Text {
+                        text: "管理微信键盘在桌面上的悬浮、待命与常驻表现。";
+                        color: #9ca3af;
+                        font-size: 12px;
+                    }
+
+                    // 卡片 1: 启动时静默待命
+                    Rectangle {
+                        height: 64px;
+                        border-radius: 12px;
+                        background: #22252c;
+                        border-width: 1px;
+                        border-color: #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            alignment: space-between;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 2px;
+                                Text { text: "启动时后台静默待命"; color: #ffffff; font-size: 14px; font-weight: 600; }
+                                Text { text: "开机或启动后不弹出悬浮窗挡住视野，按下快捷键瞬间滑出唤醒"; color: #9ca3af; font-size: 11px; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 44px;
+                                    height: 24px;
+                                    border-radius: 12px;
+                                    background: root.start-hidden ? #23c891 : #374151;
+
+                                    Rectangle {
+                                        width: 18px;
+                                        height: 18px;
+                                        border-radius: 9px;
+                                        background: #ffffff;
+                                        x: root.start-hidden ? 23px : 3px;
+                                        y: 3px;
+                                        animate x { duration: 150ms; }
+                                    }
+
+                                    TouchArea { clicked => { root.toggle-start-hidden(); } }
+                                }
+                            }
+                        }
+                    }
+
+                    // 卡片 2: 上屏后自动隐藏
+                    Rectangle {
+                        height: 64px;
+                        border-radius: 12px;
+                        background: #22252c;
+                        border-width: 1px;
+                        border-color: #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            alignment: space-between;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 2px;
+                                Text { text: "文字上屏后自动隐藏"; color: #ffffff; font-size: 14px; font-weight: 600; }
+                                Text { text: "语音或常用语完成输入后，胶囊在 1.5 秒后自动淡出隐藏，不扰视线"; color: #9ca3af; font-size: 11px; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 44px;
+                                    height: 24px;
+                                    border-radius: 12px;
+                                    background: root.auto-hide ? #23c891 : #374151;
+
+                                    Rectangle {
+                                        width: 18px;
+                                        height: 18px;
+                                        border-radius: 9px;
+                                        background: #ffffff;
+                                        x: root.auto-hide ? 23px : 3px;
+                                        y: 3px;
+                                        animate x { duration: 150ms; }
+                                    }
+
+                                    TouchArea { clicked => { root.toggle-auto-hide(); } }
+                                }
+                            }
+                        }
+                    }
+
+                    // 卡片 3: 允许鼠标拖拽移动
+                    Rectangle {
+                        height: 64px;
+                        border-radius: 12px;
+                        background: #22252c;
+                        border-width: 1px;
+                        border-color: #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            alignment: space-between;
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 2px;
+                                Text { text: "允许鼠标自由拖拽悬浮窗"; color: #ffffff; font-size: 14px; font-weight: 600; }
+                                Text { text: "按住药丸顶部即可平滑拖动至屏幕任意角落，自动记忆停留位置"; color: #9ca3af; font-size: 11px; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 44px;
+                                    height: 24px;
+                                    border-radius: 12px;
+                                    background: root.allow-drag ? #23c891 : #374151;
+
+                                    Rectangle {
+                                        width: 18px;
+                                        height: 18px;
+                                        border-radius: 9px;
+                                        background: #ffffff;
+                                        x: root.allow-drag ? 23px : 3px;
+                                        y: 3px;
+                                        animate x { duration: 150ms; }
+                                    }
+
+                                    TouchArea { clicked => { root.toggle-allow-drag(); } }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2. Tab 1: 快捷键设置
+                if root.active-tab == 1 : VerticalLayout {
+                    spacing: 16px;
+
+                    Text {
+                        text: "全局快捷键配置";
+                        color: #ffffff;
+                        font-size: 18px;
+                        font-weight: 700;
+                    }
+
+                    Text {
+                        text: "摆脱 Linux 系统键冲突，按您的键盘习惯随心定制。";
+                        color: #9ca3af;
+                        font-size: 12px;
+                    }
+
+                    // 选项 1: Ctrl + Alt + V (推荐)
+                    Rectangle {
+                        height: 58px;
+                        border-radius: 12px;
+                        background: root.voice-shortcut == "Ctrl+Alt+V" ? #23c89115 : #22252c;
+                        border-width: 1.5px;
+                        border-color: root.voice-shortcut == "Ctrl+Alt+V" ? #23c891 : #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            alignment: space-between;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text { text: "Ctrl + Alt + V (推荐组合)"; color: #ffffff; font-size: 14px; font-weight: 600; }
+                                Text { text: "避免与 GNOME Win 键冲突，双手按键极稳，不干扰任何系统功能"; color: #9ca3af; font-size: 11px; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 20px;
+                                    height: 20px;
+                                    border-radius: 10px;
+                                    border-width: 2px;
+                                    border-color: root.voice-shortcut == "Ctrl+Alt+V" ? #23c891 : #6b7280;
+
+                                    if root.voice-shortcut == "Ctrl+Alt+V" : Rectangle {
+                                        width: 10px;
+                                        height: 10px;
+                                        border-radius: 5px;
+                                        background: #23c891;
+                                        x: 3px;
+                                        y: 3px;
+                                    }
+                                }
+                            }
+                        }
+
+                        TouchArea { clicked => { root.set-shortcut("Ctrl+Alt+V"); } }
+                    }
+
+                    // 选项 2: Alt + Space
+                    Rectangle {
+                        height: 58px;
+                        border-radius: 12px;
+                        background: root.voice-shortcut == "Alt+Space" ? #23c89115 : #22252c;
+                        border-width: 1.5px;
+                        border-color: root.voice-shortcut == "Alt+Space" ? #23c891 : #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            alignment: space-between;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text { text: "Alt + 空格 (极速触发)"; color: #ffffff; font-size: 14px; font-weight: 600; }
+                                Text { text: "单拇指一键轻触即可唤出语音倾听，大模型智能转写"; color: #9ca3af; font-size: 11px; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 20px;
+                                    height: 20px;
+                                    border-radius: 10px;
+                                    border-width: 2px;
+                                    border-color: root.voice-shortcut == "Alt+Space" ? #23c891 : #6b7280;
+
+                                    if root.voice-shortcut == "Alt+Space" : Rectangle {
+                                        width: 10px;
+                                        height: 10px;
+                                        border-radius: 5px;
+                                        background: #23c891;
+                                        x: 3px;
+                                        y: 3px;
+                                    }
+                                }
+                            }
+                        }
+
+                        TouchArea { clicked => { root.set-shortcut("Alt+Space"); } }
+                    }
+
+                    // 选项 3: Super + V
+                    Rectangle {
+                        height: 58px;
+                        border-radius: 12px;
+                        background: root.voice-shortcut == "Super+V" ? #23c89115 : #22252c;
+                        border-width: 1.5px;
+                        border-color: root.voice-shortcut == "Super+V" ? #23c891 : #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            alignment: space-between;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text { text: "Win + V (Super + V 经典组合)"; color: #ffffff; font-size: 14px; font-weight: 600; }
+                                Text { text: "适用于已禁用 GNOME 概览快捷键的轻量桌面 (XFCE / i3 / KDE)"; color: #9ca3af; font-size: 11px; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 20px;
+                                    height: 20px;
+                                    border-radius: 10px;
+                                    border-width: 2px;
+                                    border-color: root.voice-shortcut == "Super+V" ? #23c891 : #6b7280;
+
+                                    if root.voice-shortcut == "Super+V" : Rectangle {
+                                        width: 10px;
+                                        height: 10px;
+                                        border-radius: 5px;
+                                        background: #23c891;
+                                        x: 3px;
+                                        y: 3px;
+                                    }
+                                }
+                            }
+                        }
+
+                        TouchArea { clicked => { root.set-shortcut("Super+V"); } }
+                    }
+                }
+
+                // 3. Tab 2: 语音与识别
+                if root.active-tab == 2 : VerticalLayout {
+                    spacing: 16px;
+
+                    Text {
+                        text: "端侧离线语音引擎";
+                        color: #ffffff;
+                        font-size: 18px;
+                        font-weight: 700;
+                    }
+
+                    Text {
+                        text: "内置 Sherpa-ONNX 离线 Paraformer 语音大模型，全程零网络、高隐私。";
+                        color: #9ca3af;
+                        font-size: 12px;
+                    }
+
+                    // 语种选择
+                    Rectangle {
+                        height: 60px;
+                        border-radius: 12px;
+                        background: #22252c;
+                        border-width: 1px;
+                        border-color: #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            alignment: space-between;
+
+                            Text { text: "输入语种偏好"; color: #ffffff; font-size: 14px; font-weight: 600; vertical-alignment: center; }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: center;
+
+                                Rectangle {
+                                    width: 60px; height: 30px; border-radius: 8px;
+                                    background: root.asr-lang == 0 ? #23c891 : #2e323b;
+                                    Text { text: "普通话"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { root.set-lang(0); } }
+                                }
+
+                                Rectangle {
+                                    width: 60px; height: 30px; border-radius: 8px;
+                                    background: root.asr-lang == 1 ? #23c891 : #2e323b;
+                                    Text { text: "英语"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { root.set-lang(1); } }
+                                }
+
+                                Rectangle {
+                                    width: 60px; height: 30px; border-radius: 8px;
+                                    background: root.asr-lang == 2 ? #23c891 : #2e323b;
+                                    Text { text: "粤语"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { root.set-lang(2); } }
+                                }
+                            }
+                        }
+                    }
+
+                    // 自动句读标点
+                    Rectangle {
+                        height: 60px;
+                        border-radius: 12px;
+                        background: #22252c;
+                        border-width: 1px;
+                        border-color: #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            alignment: space-between;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text { text: "智能断句与标点符号"; color: #ffffff; font-size: 14px; font-weight: 600; }
+                                Text { text: "根据自然停顿和语气智能插入逗号、句号与问号"; color: #9ca3af; font-size: 11px; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 44px; height: 24px; border-radius: 12px;
+                                    background: root.auto-punctuation ? #23c891 : #374151;
+
+                                    Rectangle {
+                                        width: 18px; height: 18px; border-radius: 9px;
+                                        background: #ffffff;
+                                        x: root.auto-punctuation ? 23px : 3px; y: 3px;
+                                        animate x { duration: 150ms; }
+                                    }
+
+                                    TouchArea { clicked => { root.auto-punctuation = !root.auto-punctuation; } }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. Tab 3: 外观与主题
+                if root.active-tab == 3 : VerticalLayout {
+                    spacing: 16px;
+
+                    Text {
+                        text: "外观主题与皮肤";
+                        color: #ffffff;
+                        font-size: 18px;
+                        font-weight: 700;
+                    }
+
+                    Text {
+                        text: "100% 还原官方微信输入法色调设计，支持深浅双模。";
+                        color: #9ca3af;
+                        font-size: 12px;
+                    }
+
+                    // 主题模式选择
+                    Rectangle {
+                        height: 60px;
+                        border-radius: 12px;
+                        background: #22252c;
+                        border-width: 1px;
+                        border-color: #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            alignment: space-between;
+
+                            Text { text: "色彩模式"; color: #ffffff; font-size: 14px; font-weight: 600; vertical-alignment: center; }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: center;
+
+                                Rectangle {
+                                    width: 80px; height: 32px; border-radius: 8px;
+                                    background: root.theme-mode == 0 ? #23c891 : #2e323b;
+                                    Text { text: "深色沉浸"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { root.set-theme(0); } }
+                                }
+
+                                Rectangle {
+                                    width: 80px; height: 32px; border-radius: 8px;
+                                    background: root.theme-mode == 1 ? #23c891 : #2e323b;
+                                    Text { text: "极简纯白"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { root.set-theme(1); } }
+                                }
+                            }
+                        }
+                    }
+
+                    // 候选词个数
+                    Rectangle {
+                        height: 60px;
+                        border-radius: 12px;
+                        background: #22252c;
+                        border-width: 1px;
+                        border-color: #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            alignment: space-between;
+
+                            Text { text: "Fcitx5 候选词展示数量"; color: #ffffff; font-size: 14px; font-weight: 600; vertical-alignment: center; }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: center;
+
+                                Rectangle {
+                                    width: 50px; height: 30px; border-radius: 8px;
+                                    background: root.candidate-count == 5 ? #23c891 : #2e323b;
+                                    Text { text: "5 个"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { root.candidate-count = 5; } }
+                                }
+
+                                Rectangle {
+                                    width: 50px; height: 30px; border-radius: 8px;
+                                    background: root.candidate-count == 7 ? #23c891 : #2e323b;
+                                    Text { text: "7 个"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { root.candidate-count = 7; } }
+                                }
+
+                                Rectangle {
+                                    width: 50px; height: 30px; border-radius: 8px;
+                                    background: root.candidate-count == 9 ? #23c891 : #2e323b;
+                                    Text { text: "9 个"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { root.candidate-count = 9; } }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 5. Tab 4: 常用短语管理
+                if root.active-tab == 4 : VerticalLayout {
+                    spacing: 12px;
+
+                    Text {
+                        text: "常用短语库管理";
+                        color: #ffffff;
+                        font-size: 18px;
+                        font-weight: 700;
+                    }
+
+                    Text {
+                        text: "配置后可在悬浮胶囊 Tab 0 与右键菜单中一键上屏。";
+                        color: #9ca3af;
+                        font-size: 12px;
+                    }
+
+                    for phrase[idx] in root.phrase-list : Rectangle {
+                        height: 38px;
+                        border-radius: 8px;
+                        background: #22252c;
+                        border-width: 1px;
+                        border-color: #ffffff0a;
+
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: space-between;
+
+                            Text {
+                                text: (idx + 1) + ". " + phrase;
+                                color: #d1d5db;
+                                font-size: 13px;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: "常用短语";
+                                color: #6b7280;
+                                font-size: 11px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+
+                // 6. Tab 5: 关于微信键盘
+                if root.active-tab == 5 : VerticalLayout {
+                    spacing: 16px;
+                    alignment: center;
+
+                    Image {
+                        source: @image-url("assets/logo.png");
+                        width: 64px;
+                        height: 64px;
+                        horizontal-alignment: center;
+                    }
+
+                    Text {
+                        text: "微信键盘 Linux (WeType Linux)";
+                        color: #ffffff;
+                        font-size: 18px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                    }
+
+                    Text {
+                        text: "版本 v0.1.0 · 纯 Rust 原生高性能架构";
+                        color: #23c891;
+                        font-size: 13px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 380px;
+                        height: 90px;
+                        border-radius: 12px;
+                        background: #22252c;
+                        border-width: 1px;
+                        border-color: #ffffff0a;
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 6px;
+                            Text { text: "• 深度融合 Fcitx5 微信绿主题候选词"; color: #9ca3af; font-size: 12px; horizontal-alignment: center; }
+                            Text { text: "• 内置 Sherpa-ONNX 离线端侧语音大模型"; color: #9ca3af; font-size: 12px; horizontal-alignment: center; }
+                            Text { text: "• 零 Python 依赖 · 内存仅 ~20MB · 极低延迟"; color: #9ca3af; font-size: 12px; horizontal-alignment: center; }
+                        }
+                    }
+                }
+            }
+            }
+        }
+    }
+}
+

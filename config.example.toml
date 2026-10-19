@@ -1,0 +1,48 @@
+# WeType-Linux Configuration File
+
+[general]
+# 日志级别: trace, debug, info, warn, error
+log_level = "info"
+# 全局热键呼出语音输入 (推荐: Ctrl+Alt+V 避免与桌面环境冲突, 亦支持 Alt+Space, Super+V)
+voice_shortcut = "Ctrl+Alt+V"
+# 全局热键呼出常用语 / 剪贴板历史 (例如: Alt+H)
+clipboard_shortcut = "Alt+H"
+# 启动时是否在后台静默待命 (不弹出浮窗挡住视野，按下快捷键瞬间滑出唤醒)
+start_hidden = false
+# 文字上屏后是否自动隐藏 (语音或常用语完成输入后 1.5 秒自动淡出)
+auto_hide_after_commit = false
+# 是否允许鼠标自由拖拽悬浮窗位置
+allow_drag = true
+
+[asr]
+# 识别模式: "hybrid" (默认：有网走云端，无网走本地), "cloud_only", "local_only"
+mode = "hybrid"
+
+[asr.local]
+# Sherpa-ONNX 离线模型路径配置
+enabled = true
+# 推荐使用 Paraformer 或 Whisper-tiny ONNX 模型
+model_dir = "~/.local/share/wetype/models/sherpa-paraformer-zh"
+tokens = "~/.local/share/wetype/models/sherpa-paraformer-zh/tokens.txt"
+num_threads = 2
+
+[asr.cloud]
+# 在线云端 API 引擎配置 (支持阿里云百炼/自建 Whisper API/讯飞等)
+enabled = true
+provider = "aliyun" # "aliyun" | "whisper_api" | "xfyun"
+api_key = "YOUR_API_KEY_HERE"
+endpoint = "https://dashscope.aliyuncs.com/api/v1/services/aigc/speech-generation/generation"
+
+[clipboard]
+# 剪贴板历史记录最大保存条数
+max_history_items = 200
+# 是否忽略密码管理器等敏感信息类型 (根据 mime-type 过滤)
+ignore_sensitive = true
+
+[p2p_sync]
+# 局域网跨设备剪贴板同步功能
+enabled = false
+device_name = "Linux-Desktop"
+# 局域网组网配对密码 (用于 AES-GCM 端到端加密)
+pair_secret = "your_shared_passphrase_here"
+port = 42890

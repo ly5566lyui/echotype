@@ -1,0 +1,15 @@
+[Unit]
+Description=WeType-Linux Input Method Enhancement Daemon
+Documentation=https://github.com/ly5566lyui/-wetype-
+After=graphical-session.target fcitx5.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/wetype-linux daemon
+Restart=on-failure
+RestartSec=3s
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,47 @@
+[package]
+name = "wetype-linux"
+version = "0.1.0"
+edition = "2021"
+authors = ["WeType-Linux Contributors"]
+description = "A modern input method enhancement daemon for Linux (Fcitx5), featuring voice-to-text, cross-device clipboard sync, and quick phrases."
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/ly5566lyui/-wetype-"
+keywords = ["ime", "fcitx5", "speech-to-text", "clipboard", "linux"]
+categories = ["command-line-utilities", "internationalization"]
+
+[dependencies]
+# Async Runtime & Core Utilities
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "process", "time", "fs"] }
+anyhow = "1.0"
+thiserror = "1.0"
+async-trait = "0.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "=4.5.20", features = ["derive"] }
+
+# UI Framework (Pure Rust Floating Capsule / Pill)
+slint = { version = "=1.13.0", default-features = false, features = ["compat-1-2", "renderer-femtovg", "backend-winit"] }
+
+# Configuration & JSON
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+
+# Linux DBus Interop (Fcitx5 & System Services)
+zbus = { version = "=4.4.0", features = ["tokio"] }
+
+# Audio & Speech Recording
+cpal = "0.15"
+
+# Clipboard & Quick Phrases Storage
+arboard = { version = "3.4", default-features = false }
+rusqlite = "0.31"
+
+[build-dependencies]
+slint-build = "=1.13.0"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+strip = true
