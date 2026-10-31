@@ -9,3 +9,6 @@ data/
 *.db-shm
 *.db-wal
 models/
+
+# 开发纪要含本地环境信息 (内网地址/账号等)，不入公开仓库
+docs/dev/

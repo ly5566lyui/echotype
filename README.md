@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2021%20Edition-orange.svg)](https://www.rust-lang.org/)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20(Wayland%20%7C%20X11)-brightgreen.svg)]()
+[![CI](https://github.com/ly5566lyui/-wetype-/actions/workflows/ci.yml/badge.svg)](https://github.com/ly5566lyui/-wetype-/actions/workflows/ci.yml)
 
 **WeType-Linux** 是一个专为 Linux 桌面环境打造的**现代输入法增强守护程序**。基于 **Fcitx5 + Rime (雾凇拼音)** 基座，提供类似现代商业输入法（如微信输入法）的流畅功能体验，包括**端云混合语音输入、跨设备局域网剪贴板同步、智能常用语快速上屏**等。
 
@@ -21,6 +22,22 @@
   - 本地 SQLite 高效检索，随时一键调出常用模版、邮箱、地址、长文本并直接上屏。
 - 🦀 **Rust 单二进制构建**：
   - 超低内存驻留（常驻仅 10~20MB），启动速度极快，系统级安全保障。
+
+---
+
+## 📊 功能完成度
+
+| 功能 | 状态 | 说明 |
+|---|---|---|
+| Fcitx5 文字上屏 (Wayland / X11) | ✅ | DBus + Lua 桥接扩展自动部署，无需按键模拟 |
+| 语音输入 (端云混合) | ✅ | 云端 API 优先，断网自动降级本地 Sherpa-ONNX |
+| 静音裁剪 / 录音时长保护 | ✅ | 能量法 VAD-lite + 60 秒上限看门狗 |
+| 全局热键 | ✅ | X11: XGrabKey；Wayland: XDG Portal GlobalShortcuts |
+| 常用语 / 剪贴板历史 | ✅ | SQLite 存储 + 敏感内容过滤 + 上限裁剪 |
+| 设置中心 | ✅ | 悬浮胶囊 + 设置持久化至 `config.toml` |
+| 局域网 P2P 剪贴板同步 | ✅ | mDNS 自动发现 + AES-256-GCM 端到端加密 |
+| Fcitx5 微信键盘候选框主题 | ✅ | `themes/wetype-clean` 一键部署 |
+| 悬浮窗深浅主题切换 / 边写边译 / AI 助理 | 🚧 | 规划中 (设置项与入口已预留) |
 
 ---
 
@@ -70,6 +87,11 @@ sudo pacman -S fcitx5 fcitx5-rime rime-ice fcitx5-configtool
 sudo apt install fcitx5 fcitx5-rime librime-data
 ```
 
+> 💡 **其它依赖说明**
+> - **构建依赖**：`cpal` 录音需要 ALSA 开发头文件 —— Debian/Ubuntu: `sudo apt install libasound2-dev`；Arch: `sudo pacman -S alsa-lib`。SQLite 已随构建内置 (`rusqlite/bundled`)，无需系统库。
+> - **Wayland 全局热键**：需要 `xdg-desktop-portal` 及支持 GlobalShortcuts 的后端 (GNOME 46+ / KDE / wlroots 系)，首次触发会弹出系统授权弹窗；X11 下无此要求。
+> - **P2P 剪贴板同步**：所有设备须配置相同的 `pair_secret`（口令为空时该功能自动禁用，不做明文同步）。
+
 详细的 Fcitx5 与雾凇拼音配置指南见：[docs/rime_setup_guide.md](docs/rime_setup_guide.md)。
 
 ### 2. 构建与运行
@@ -88,6 +110,40 @@ cp config.example.toml ~/.config/wetype/config.toml
 # 启动守护进程
 ./target/release/wetype-linux daemon
 ```
+
+---
+
+## 📁 项目结构
+
+```text
+wetype-linux/
+├── src/
+│   ├── main.rs          # 入口: gui / daemon / voice-input / phrases / test-fcitx 子命令
+│   ├── config.rs        # 配置加载与持久化 (TOML, 缺省字段向后兼容)
+│   ├── cli.rs           # clap 命令行定义
+│   ├── asr/             # 语音识别: recorder(录音+VAD) / cloud_api / local_sherpa / 混合调度
+│   ├── clipboard/       # monitor(监听+敏感过滤) / storage(SQLite) / sync_p2p(mDNS+AES-GCM)
+│   ├── fcitx/           # Fcitx5 DBus 客户端 + Lua 桥接扩展自动部署
+│   ├── hotkey/          # 全局热键: X11 XGrabKey / Wayland Portal GlobalShortcuts
+│   └── ui/              # Slint 悬浮胶囊与设置中心的回调接线
+├── ui/                  # Slint UI 定义 (pill / settings) 与图标资源
+├── docs/                # 架构文档与 Rime 配置指南 (docs/dev/ 为开发纪要)
+├── scripts/             # install / download_models / integrate_fcitx5 部署脚本
+├── systemd/             # 用户级 systemd 服务
+├── themes/              # Fcitx5 候选框微信键盘主题
+└── .github/             # CI 工作流与 Issue 模板
+```
+
+## 🛠️ 开发与测试
+
+```bash
+cargo check              # 静态检查
+cargo test               # 单元测试 (加解密 / 快捷键解析 / 静音裁剪 / 配置兼容等 19 例)
+cargo run -- gui         # 本地运行悬浮胶囊
+cargo run -- -v daemon   # 调试模式运行守护进程
+```
+
+提交 PR 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)；持续集成定义在 [.github/workflows/ci.yml](.github/workflows/ci.yml)。
 
 ---
 

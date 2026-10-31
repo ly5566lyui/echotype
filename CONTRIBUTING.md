@@ -6,8 +6,10 @@
 
 1. **安装基础依赖 (Ubuntu/Debian)**:
    ```bash
-   sudo apt install -y build-essential libasound2-dev libdbus-1-dev
+   sudo apt install -y build-essential libasound2-dev
    ```
+   > DBus (zbus) 与 SQLite (rusqlite bundled) 均为纯 Rust 实现，无需系统库；
+   > 仅 `cpal` 录音需要 ALSA 开发头文件。
 2. **安装 Rust 工具链**:
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
