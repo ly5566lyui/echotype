@@ -13,6 +13,7 @@ export component SettingsWindow inherits Window {
     in-out property <bool> auto-punctuation: true;
     in-out property <int> theme-mode: 0; // 0: 深色, 1: 浅色, 2: 跟随系统
     in-out property <int> candidate-count: 5;
+    in-out property <string> status-text: "";
     in-out property <[string]> phrase-list: [
         "收到，马上处理！",
         "好的，没问题。",
@@ -886,7 +887,7 @@ export component SettingsWindow inherits Window {
                     }
 
                     Text {
-                        text: "版本 v0.1.0 · 纯 Rust 原生高性能架构";
+                        text: "版本 v0.2.0 · 纯 Rust 原生高性能架构";
                         color: #23c891;
                         font-size: 13px;
                         font-weight: 600;
@@ -911,6 +912,27 @@ export component SettingsWindow inherits Window {
                     }
                 }
             }
+            }
+
+            // 底部保存状态栏
+            Rectangle {
+                height: 34px;
+                background: #202227;
+
+                Rectangle {
+                    y: 0px;
+                    height: 1px;
+                    width: 100%;
+                    background: #ffffff12;
+                }
+
+                Text {
+                    x: 20px;
+                    text: root.status-text;
+                    color: #23c891;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
             }
         }
     }

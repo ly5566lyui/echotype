@@ -9,3 +9,4 @@ Type=Application
 Categories=Utility;InputMethod;AudioVideo;
 Keywords=ime;fcitx5;speech;voice;clipboard;wetype;wechat;
 StartupNotify=true
+StartupWMClass=wetype-linux

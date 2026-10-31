@@ -1,6 +1,6 @@
 [package]
 name = "wetype-linux"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["WeType-Linux Contributors"]
 description = "A modern input method enhancement daemon for Linux (Fcitx5), featuring voice-to-text, cross-device clipboard sync, and quick phrases."
@@ -26,7 +26,10 @@ slint = { version = "=1.13.0", default-features = false, features = ["compat-1-2
 # Configuration & JSON
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-toml = { version = "0.8", default-features = false, features = ["parse"] }
+toml = { version = "0.8", default-features = false, features = ["parse", "display"] }
+
+# Standard Paths (~/.config, ~/.local/share)
+dirs = "5"
 
 # Linux DBus Interop (Fcitx5 & System Services)
 zbus = { version = "=4.4.0", features = ["tokio"] }
@@ -35,8 +38,20 @@ zbus = { version = "=4.4.0", features = ["tokio"] }
 cpal = "0.15"
 
 # Clipboard & Quick Phrases Storage
-arboard = { version = "3.4", default-features = false }
-rusqlite = "0.31"
+# wayland-data-control: 原生 Wayland 剪贴板读写 (缺失时仅能经 XWayland 工作)
+arboard = { version = "3.4", default-features = false, features = ["wayland-data-control"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Global Hotkeys (X11: XGrabKey; Wayland falls back to the XDG Portal, see src/hotkey/)
+global-hotkey = "0.6"
+
+# LAN P2P Clipboard Sync (mDNS discovery + AES-256-GCM encrypted TCP)
+mdns-sd = "0.11"
+aes-gcm = "0.10"
+sha2 = "0.10"
+
+# DBus signal streams (Portal GlobalShortcuts)
+futures-util = "0.3"
 
 [build-dependencies]
 slint-build = "=1.13.0"

@@ -43,6 +43,12 @@ impl AsrEngine for CloudAsrEngine {
 
         let wav_path = PathBuf::from("/tmp/wetype_cloud_upload.wav");
         save_wav_16k_mono(&wav_path, pcm_data)?;
+        // 语音属隐私数据，临时文件权限收紧为 0600，防止同机其他用户读取
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&wav_path, std::fs::Permissions::from_mode(0o600));
+        }
 
         let model_name = if self.provider == "siliconflow" {
             "FunAudioLLM/SenseVoiceSmall"
@@ -66,6 +72,9 @@ impl AsrEngine for CloudAsrEngine {
             .output()
             .await
             .context("Failed to execute curl for Cloud ASR request")?;
+
+        // 上传完成 (无论成败) 立即清理临时语音文件，避免语音数据残留磁盘
+        let _ = std::fs::remove_file(&wav_path);
 
         if !output.status.success() {
             let err_str = String::from_utf8_lossy(&output.stderr);

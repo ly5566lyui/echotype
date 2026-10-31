@@ -11,6 +11,15 @@ if ! command -v cargo &>/dev/null; then
     exit 1
 fi
 
+# 1.5 构建依赖与运行环境检查 (仅提示，不代装)
+if command -v apt-get &>/dev/null; then
+    dpkg -s libasound2-dev &>/dev/null || echo "提示: 建议安装 ALSA 构建依赖: sudo apt install -y libasound2-dev" >&2
+    command -v fcitx5 &>/dev/null || echo "提示: 未检测到 Fcitx5，上屏功能依赖它: sudo apt install -y fcitx5 fcitx5-rime" >&2
+elif command -v pacman &>/dev/null; then
+    pacman -Q alsa-lib &>/dev/null || echo "提示: 建议安装 ALSA 构建依赖: sudo pacman -S alsa-lib" >&2
+    command -v fcitx5 &>/dev/null || echo "提示: 未检测到 Fcitx5: sudo pacman -S fcitx5 fcitx5-rime rime-ice" >&2
+fi
+
 # 2. 编译 Release 二进制文件
 echo "--> 正在编译 Release 版本..."
 cargo build --release

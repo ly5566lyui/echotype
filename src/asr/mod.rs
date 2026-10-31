@@ -7,14 +7,16 @@ use anyhow::Result;
 use async_trait::async_trait;
 use cloud_api::CloudAsrEngine;
 use local_sherpa::LocalSherpaEngine;
+use recorder::trim_silence;
 use std::path::PathBuf;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 #[async_trait]
 pub trait AsrEngine: Send + Sync {
     /// 识别 PCM 音频数据 (16kHz, 16bit, 单声道) 并返回识别文本
     async fn recognize(&self, pcm_data: &[i16]) -> Result<String>;
     /// 获取当前引擎名称
+    #[allow(dead_code)] // 预留: 供状态展示与引擎诊断使用
     fn name(&self) -> &'static str;
 }
 
@@ -48,6 +50,21 @@ impl HybridAsrEngine {
 #[async_trait]
 impl AsrEngine for HybridAsrEngine {
     async fn recognize(&self, pcm_data: &[i16]) -> Result<String> {
+        // 静音裁剪 (VAD-lite)：去掉首尾静音，降低噪声误识别与上传体积
+        let trimmed = trim_silence(pcm_data);
+        if trimmed.is_empty() {
+            warn!("No speech detected after silence trimming; skipping ASR.");
+            return Ok(String::new());
+        }
+        if trimmed.len() != pcm_data.len() {
+            debug!(
+                "Silence trimmed: {} -> {} samples.",
+                pcm_data.len(),
+                trimmed.len()
+            );
+        }
+        let pcm_data: &[i16] = &trimmed;
+
         if self.mode == "cloud_only" {
             return self.cloud.recognize(pcm_data).await;
         }

@@ -13,10 +13,18 @@ start_hidden = false
 auto_hide_after_commit = false
 # 是否允许鼠标自由拖拽悬浮窗位置
 allow_drag = true
+# 悬浮窗主题: 0 深色沉浸, 1 极简纯白
+ui_theme = 0
+# Fcitx5 候选词数量 (5/7/9)，保存设置时 best-effort 同步写入 fcitx5 pinyin 配置
+candidate_count = 5
 
 [asr]
 # 识别模式: "hybrid" (默认：有网走云端，无网走本地), "cloud_only", "local_only"
 mode = "hybrid"
+# 识别语种偏好: 0 普通话, 1 英语, 2 粤语
+language = 0
+# 智能断句与标点符号 (根据自然停顿插入逗号/句号/问号)
+auto_punctuation = true
 
 [asr.local]
 # Sherpa-ONNX 离线模型路径配置
@@ -40,9 +48,10 @@ max_history_items = 200
 ignore_sensitive = true
 
 [p2p_sync]
-# 局域网跨设备剪贴板同步功能
+# 局域网跨设备剪贴板同步功能 (mDNS 自动发现 + AES-256-GCM 端到端加密)
+# 注意: pair_secret 为空时该功能会被拒绝启动 (不进行明文同步)
 enabled = false
 device_name = "Linux-Desktop"
-# 局域网组网配对密码 (用于 AES-GCM 端到端加密)
+# 局域网组网配对密码 (用于 AES-GCM 端到端加密，所有设备须一致)
 pair_secret = "your_shared_passphrase_here"
 port = 42890

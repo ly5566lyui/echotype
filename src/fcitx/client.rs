@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::PathBuf;
-use tracing::{debug, info};
+use std::sync::Mutex;
+use tracing::{debug, info, warn};
 use zbus::Connection;
 
 const WETYPE_LUA_EXTENSION: &str = r#"local fcitx = require('fcitx')
@@ -14,11 +15,6 @@ function onWeTypeTrigger()
         os.remove(path)
         if text and #text > 0 then
             fcitx.commitString(text)
-            local lf = io.open('/tmp/wetype_log.txt', 'a')
-            if lf then
-                lf:write('Committed: ' .. text .. ' | lastCommit=' .. tostring(fcitx.lastCommit()) .. '\n')
-                lf:close()
-            end
         end
     end
     return false
@@ -30,7 +26,11 @@ fcitx.watchEvent(fcitx.EventType.SwitchInputMethod, 'onWeTypeTrigger')
 fcitx.watchEvent(fcitx.EventType.FocusIn, 'onWeTypeTrigger')
 "#;
 
+/// 全进程共享的 Fcitx5 客户端 (避免每次上屏都重建 DBus 连接并检查 Lua 扩展)
+static SHARED_CLIENT: Mutex<Option<FcitxClient>> = Mutex::new(None);
+
 /// 与 Fcitx5 交互的 DBus 客户端
+#[derive(Clone)]
 pub struct FcitxClient {
     connection: Connection,
 }
@@ -113,10 +113,18 @@ impl FcitxClient {
 
         info!("Committing string to Fcitx5: \"{}\"", text);
 
-        // 1. 写入待提交文本至临时信箱
+        // 1. 写入待提交文本至临时信箱 (权限收紧为 0600，避免同机其他用户读取)
         let commit_path = "/tmp/wetype_commit.txt";
         std::fs::write(commit_path, text.as_bytes())
             .context("Failed to write /tmp/wetype_commit.txt")?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(
+                commit_path,
+                std::fs::Permissions::from_mode(0o600),
+            );
+        }
 
         // 2. 通过快速双次 Toggle 触发 Fcitx5 内部事件回调并保持原输入法状态不变
         for _ in 0..2 {
@@ -143,4 +151,72 @@ impl FcitxClient {
         debug!("String successfully committed to active Fcitx5 InputContext.");
         Ok(())
     }
+}
+
+/// 预热共享 Fcitx5 连接 (daemon/GUI 启动时调用；不可用仅告警，不阻断)
+pub async fn warm_up() -> Result<()> {
+    if SHARED_CLIENT.lock().unwrap().is_some() {
+        return Ok(());
+    }
+    let client = FcitxClient::new().await?;
+    *SHARED_CLIENT.lock().unwrap() = Some(client);
+    Ok(())
+}
+
+/// 复用共享 Fcitx5 连接提交文本；连接失效 (如 Fcitx5 重启) 时自动重连。
+/// 全应用上屏统一走此入口，避免每次提交都重新建立 DBus 连接。
+pub async fn commit_string_cached(text: &str) -> Result<()> {
+    if text.is_empty() {
+        return Ok(());
+    }
+
+    let cached = SHARED_CLIENT.lock().unwrap().clone();
+    if let Some(client) = cached {
+        match client.commit_string(text).await {
+            Ok(()) => return Ok(()),
+            Err(e) => warn!("Cached Fcitx5 connection failed ({e:#}), reconnecting..."),
+        }
+    }
+
+    let client = FcitxClient::new().await?;
+    let result = client.commit_string(text).await;
+    if result.is_ok() {
+        *SHARED_CLIENT.lock().unwrap() = Some(client);
+    }
+    result
+}
+
+/// 将候选词数量 best-effort 写入 Fcitx5 中文拼音引擎配置
+/// (`~/.config/fcitx5/conf/pinyin.conf` 的 `PageSize`)。
+/// 若该配置不存在则创建；需重启 Fcitx5 后生效。失败不影响主流程。
+pub fn apply_candidate_count(count: i32) -> Result<()> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let conf_dir = PathBuf::from(&home).join(".config/fcitx5/conf");
+    let conf_file = conf_dir.join("pinyin.conf");
+    std::fs::create_dir_all(&conf_dir)?;
+
+    let key = "PageSize";
+    let content = std::fs::read_to_string(&conf_file).unwrap_or_default();
+    let mut out = String::new();
+    let mut replaced = false;
+    for line in content.lines() {
+        let is_target = match line.split_once('=') {
+            Some((k, _)) => k.trim() == key,
+            None => false,
+        };
+        if is_target {
+            out.push_str(&format!("{}={}\n", key, count));
+            replaced = true;
+        } else {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    if !replaced {
+        out.push_str(&format!("{}={}\n", key, count));
+    }
+
+    std::fs::write(&conf_file, out)?;
+    info!("Fcitx5 pinyin PageSize set to {} in {:?}", count, conf_file);
+    Ok(())
 }

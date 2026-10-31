@@ -10,17 +10,20 @@ FCITX5_DATA="${HOME_DIR}/.local/share/fcitx5"
 FCITX5_CONFIG="${HOME_DIR}/.config/fcitx5"
 BIN_DIR="${HOME_DIR}/.local/bin"
 
-# 1. 安装微信键盘主题 (wetype-dark & wetype-clean)
+# 1. 安装微信键盘主题 (防御性遍历: 仅部署仓库中实际存在的主题目录)
 echo "--> 1. 部署 Fcitx5 微信键盘视觉主题..."
 mkdir -p "${FCITX5_DATA}/themes"
-cp -r themes/wetype-dark "${FCITX5_DATA}/themes/"
-cp -r themes/wetype-clean "${FCITX5_DATA}/themes/"
+for theme_dir in themes/wetype-*; do
+    if [ -d "${theme_dir}" ]; then
+        cp -r "${theme_dir}" "${FCITX5_DATA}/themes/"
+    fi
+done
 echo "   ✓ 主题已安装至 ${FCITX5_DATA}/themes/"
 
 # 2. 启用微信暗黑主题 (wetype-dark)
 echo "--> 2. 激活候选框微信键盘主题..."
 mkdir -p "${FCITX5_CONFIG}/conf"
-cat > "${FCITX5_CONFIG}/conf/classicui.config" << 'EOF'
+cat > "${FCITX5_CONFIG}/conf/classicui.conf" << 'EOF'
 # 垂直或水平候选列表
 Vertical Candidate List=False
 # 使用微信键盘专属主题
@@ -32,7 +35,7 @@ MenuFont="Noto Sans CJK SC 10"
 # 首选 DPI 缩放
 PerScreenDPI=True
 EOF
-echo "   ✓ classicui.config 配置已生效 (Theme=wetype-dark)"
+echo "   ✓ classicui.conf 配置已生效 (Theme=wetype-dark)"
 
 # 3. 配置 Rime 拼音引擎为「微信键盘」
 echo "--> 3. 配置系统输入法名称为「微信键盘」..."

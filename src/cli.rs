@@ -37,10 +37,15 @@ pub enum Commands {
     },
     /// 列出或管理常用语与剪贴板历史
     Phrases {
+        /// 添加一条常用语
         #[arg(short, long)]
         add: Option<String>,
+        /// 列出常用语
         #[arg(short, long)]
         list: bool,
+        /// 列出最近剪贴板历史 (而非常用语)
+        #[arg(long)]
+        history: bool,
     },
     /// 测试与 Fcitx5 的 DBus 连通性并注入文字上屏
     TestFcitx {
