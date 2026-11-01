@@ -20,10 +20,20 @@ use tracing::{info, warn};
 /// 热键触发后的动作
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HotkeyAction {
-    /// 语音输入 (开始/停止录音切换)
+    /// 语音输入 (开始/停止录音切换，或按住说话)
     Voice,
     /// 常用语 / 剪贴板抽屉
     Clipboard,
+}
+
+/// 热键触发事件：动作 + 按键状态
+///
+/// `is_press`: true = 按下, false = 松开。
+/// 关闭"按住说话"时上层通常只响应按下；开启后按下开始录音、松开结束。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HotkeyEvent {
+    pub action: HotkeyAction,
+    pub is_press: bool,
 }
 
 /// 一条待注册的快捷键描述
@@ -65,7 +75,7 @@ pub struct HotkeyHandle {
 /// - 否则走 X11 XGrabKey；X11 注册失败时自动回退尝试 Portal。
 pub fn register(
     specs: Vec<ShortcutSpec>,
-    dispatch: Arc<dyn Fn(HotkeyAction) + Send + Sync>,
+    dispatch: Arc<dyn Fn(HotkeyEvent) + Send + Sync>,
     rt: Handle,
 ) -> HotkeyHandle {
     let is_wayland = std::env::var("WAYLAND_DISPLAY")
@@ -103,7 +113,7 @@ pub fn register(
 /// - `GlobalHotKeyEvent { id: u32, state: HotKeyState }` 且 `set_event_handler(Some(fn))` 可用
 fn x11_register(
     specs: Vec<ShortcutSpec>,
-    dispatch: Arc<dyn Fn(HotkeyAction) + Send + Sync>,
+    dispatch: Arc<dyn Fn(HotkeyEvent) + Send + Sync>,
 ) -> Result<GlobalHotKeyManager> {
     let manager =
         GlobalHotKeyManager::new().context("X11 global hotkey manager unavailable")?;
@@ -125,10 +135,11 @@ fn x11_register(
     // 事件分发: 用官方回调接口 set_event_handler，避免依赖 receiver 通道的 recv/try_recv
     // 版本差异；回调在事件源线程触发，dispatch 内部自行回到 UI 线程 / tokio 运行时
     GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
-        if event.state == HotKeyState::Pressed {
-            if let Some(action) = lookup.get(&event.id) {
-                dispatch(*action);
-            }
+        if let Some(action) = lookup.get(&event.id) {
+            dispatch(HotkeyEvent {
+                action: *action,
+                is_press: event.state == HotKeyState::Pressed,
+            });
         }
     }));
 

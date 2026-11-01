@@ -447,16 +447,18 @@ pub fn run_pill_ui(config: AppConfig, config_path: PathBuf, rt: Handle) -> Resul
         let cfg_path = config_path.clone();
         let storage_ref = Arc::clone(&storage);
         let pill_weak = pill.as_weak();
+        let rt_open = rt.clone();
 
         pill.on_open_settings(move || {
             info!("Opening WeChat-Keyboard Settings Window...");
             if settings_ref.lock().unwrap().is_none() {
-                if let Err(e) = open_settings_window(
+                if let Err(e) = spawn_settings_window(
                     &settings_ref,
                     &shared_cfg,
                     &cfg_path,
                     &storage_ref,
                     pill_weak.clone(),
+                    &rt_open,
                 ) {
                     error!("Failed to open settings window: {:#}", e);
                     return;
@@ -533,19 +535,39 @@ pub fn run_pill_ui(config: AppConfig, config_path: PathBuf, rt: Handle) -> Resul
             ),
         ];
         let pill_weak = pill.as_weak();
-        let dispatch: Arc<dyn Fn(hotkey::HotkeyAction) + Send + Sync> = Arc::new(move |action| {
-            let pw = pill_weak.clone();
-            let _ = pw.upgrade_in_event_loop(move |ui| match action {
-                hotkey::HotkeyAction::Voice => {
-                    let _ = ui.window().show();
-                    ui.invoke_toggle_recording();
-                }
-                hotkey::HotkeyAction::Clipboard => {
-                    let _ = ui.window().show();
-                    ui.invoke_toggle_drawer();
-                }
+        let shared_disp = Arc::clone(&shared);
+        let dispatch: Arc<dyn Fn(hotkey::HotkeyEvent) + Send + Sync> =
+            Arc::new(move |event: hotkey::HotkeyEvent| {
+                let pw = pill_weak.clone();
+                let shared_ev = Arc::clone(&shared_disp);
+                let _ = pw.upgrade_in_event_loop(move |ui| match event.action {
+                    hotkey::HotkeyAction::Voice => {
+                        let ptt = shared_ev
+                            .lock()
+                            .map(|g| g.general.push_to_talk)
+                            .unwrap_or(false);
+                        let recording = ui.get_is_recording() || ui.get_is_processing();
+                        if ptt {
+                            // 按住说话: 按下开始，松开结束
+                            if event.is_press && !recording {
+                                let _ = ui.window().show();
+                                ui.invoke_toggle_recording();
+                            } else if !event.is_press && recording {
+                                ui.invoke_toggle_recording();
+                            }
+                        } else if event.is_press {
+                            let _ = ui.window().show();
+                            ui.invoke_toggle_recording();
+                        }
+                    }
+                    hotkey::HotkeyAction::Clipboard => {
+                        if event.is_press {
+                            let _ = ui.window().show();
+                            ui.invoke_toggle_drawer();
+                        }
+                    }
+                });
             });
-        });
         info!(
             "Registering global hotkeys: voice={}, clipboard={}",
             voice_sc, clip_sc
@@ -619,12 +641,13 @@ pub fn run_pill_ui(config: AppConfig, config_path: PathBuf, rt: Handle) -> Resul
     if std::env::var("WETYPE_SETTINGS").is_ok() {
         info!("Opening Settings Window via WETYPE_SETTINGS flag...");
         if settings_instance.lock().unwrap().is_none() {
-            if let Err(e) = open_settings_window(
+            if let Err(e) = spawn_settings_window(
                 &settings_instance,
                 &shared,
                 &config_path,
                 &storage,
                 pill.as_weak(),
+                &rt,
             ) {
                 error!("Failed to open settings window: {:#}", e);
             }
@@ -647,13 +670,14 @@ pub fn run_pill_ui(config: AppConfig, config_path: PathBuf, rt: Handle) -> Resul
 }
 
 /// 创建设置中心窗口并完成全部接线:
-/// 初始属性装载 (来自共享配置) -> 交互回调 (改窗口内属性) -> 保存回调 (落盘 config.toml)
-fn open_settings_window(
+/// 初始属性装载 (来自共享配置) -> 交互回调 (即时写库/改属性) -> 保存回调 (落盘 config.toml)
+fn spawn_settings_window(
     settings_ref: &Arc<Mutex<Option<SettingsWindow>>>,
     shared: &Arc<Mutex<AppConfig>>,
     config_path: &PathBuf,
     storage: &Arc<Option<ClipboardStorage>>,
     pill_weak: slint::Weak<FloatingPill>,
+    rt: &Handle,
 ) -> Result<()> {
     let win = SettingsWindow::new()?;
     let cfg = shared.lock().unwrap().clone();
@@ -663,25 +687,33 @@ fn open_settings_window(
     win.set_auto_hide(cfg.general.auto_hide_after_commit);
     win.set_allow_drag(cfg.general.allow_drag);
     win.set_voice_shortcut(cfg.general.voice_shortcut.clone().into());
-    win.set_theme_mode(cfg.general.ui_theme);
+    win.set_clipboard_shortcut(cfg.general.clipboard_shortcut.clone().into());
+    win.set_push_to_talk(cfg.general.push_to_talk);
     win.set_asr_lang(cfg.asr.language);
     win.set_auto_punctuation(cfg.asr.auto_punctuation);
-    win.set_candidate_count(cfg.general.candidate_count);
+    win.set_theme_mode(cfg.general.ui_theme);
+    win.set_candidate_font_size(cfg.general.candidate_font_size);
+    win.set_p2p_enabled(cfg.p2p_sync.enabled);
+    win.set_device_name(cfg.p2p_sync.device_name.clone().into());
+    win.set_pair_secret(cfg.p2p_sync.pair_secret.clone().into());
+    win.set_p2p_port(cfg.p2p_sync.port.to_string().into());
+    win.set_current_im("Fcitx5 + Rime (雾凇拼音)".into());
 
-    // 常用语列表: 库里有数据用库，否则保留 slint 内置默认
-    let stored: Option<Vec<String>> = match storage.as_ref() {
-        Some(st) => st.get_quick_phrases(20).ok(),
-        None => None,
+    // 常用语与剪贴板历史 (真数据)
+    let phrases = match storage.as_ref() {
+        Some(st) => st.get_quick_phrases(50).unwrap_or_default(),
+        None => Vec::new(),
     };
-    let phrases: Vec<SharedString> = match stored {
-        Some(v) if !v.is_empty() => v.into_iter().map(SharedString::from).collect(),
-        _ => win
-            .get_phrase_list()
-            .iter()
-            .map(|s| s.to_string().into())
-            .collect(),
+    win.set_phrase_list(ModelRc::new(
+        VecModel::from(phrases.into_iter().map(SharedString::from).collect::<Vec<_>>()),
+    ));
+    let clips = match storage.as_ref() {
+        Some(st) => st.get_recent_history(20).unwrap_or_default(),
+        None => Vec::new(),
     };
-    win.set_phrase_list(ModelRc::new(VecModel::from(phrases)));
+    win.set_clipboard_list(ModelRc::new(
+        VecModel::from(clips.into_iter().map(SharedString::from).collect::<Vec<_>>()),
+    ));
 
     // 关闭窗口
     {
@@ -693,10 +725,10 @@ fn open_settings_window(
         });
     }
 
-    // 交互回调: 仅更新窗口内属性，点「保存」时统一落盘
+    // 快捷键选择 (保存后重启生效)
     {
         let weak = win.as_weak();
-        win.on_set_shortcut(move |s| {
+        win.on_set_voice_shortcut(move |s| {
             if let Some(sw) = weak.upgrade() {
                 sw.set_voice_shortcut(s);
             }
@@ -704,41 +736,102 @@ fn open_settings_window(
     }
     {
         let weak = win.as_weak();
-        win.on_toggle_start_hidden(move || {
+        win.on_set_clipboard_shortcut(move |s| {
             if let Some(sw) = weak.upgrade() {
-                sw.set_start_hidden(!sw.get_start_hidden());
+                sw.set_clipboard_shortcut(s);
             }
         });
     }
+
+    // 常用语添加 (立即写库并刷新列表)
     {
         let weak = win.as_weak();
-        win.on_toggle_auto_hide(move || {
+        let storage = Arc::clone(storage);
+        win.on_add_phrase(move |text: SharedString| {
+            let t = text.trim().to_string();
+            if t.is_empty() {
+                return;
+            }
+            let Some(st) = storage.as_ref() else { return };
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos();
+            if let Err(e) = st.add_quick_phrase(&format!("p_{}", nanos), &t, None) {
+                warn!("Failed to add quick phrase: {:#}", e);
+                return;
+            }
             if let Some(sw) = weak.upgrade() {
-                sw.set_auto_hide(!sw.get_auto_hide());
+                sw.set_status_text(format!("已添加常用语: {}", t).into());
+                sw.set_phrase_new("".into());
+                let list = st.get_quick_phrases(50).unwrap_or_default();
+                sw.set_phrase_list(ModelRc::new(
+                    VecModel::from(list.into_iter().map(SharedString::from).collect::<Vec<_>>()),
+                ));
             }
         });
     }
+
+    // 常用语删除 (立即写库并刷新列表)
     {
         let weak = win.as_weak();
-        win.on_toggle_allow_drag(move || {
+        let storage = Arc::clone(storage);
+        win.on_delete_phrase(move |text: SharedString| {
+            let t = text.to_string();
+            let Some(st) = storage.as_ref() else { return };
+            if let Err(e) = st.delete_quick_phrase(&t) {
+                warn!("Failed to delete quick phrase: {:#}", e);
+                return;
+            }
             if let Some(sw) = weak.upgrade() {
-                sw.set_allow_drag(!sw.get_allow_drag());
+                sw.set_status_text(format!("已删除常用语: {}", t).into());
+                let list = st.get_quick_phrases(50).unwrap_or_default();
+                sw.set_phrase_list(ModelRc::new(
+                    VecModel::from(list.into_iter().map(SharedString::from).collect::<Vec<_>>()),
+                ));
             }
         });
     }
+
+    // 剪贴板条目点击 -> 复制到剪贴板
     {
         let weak = win.as_weak();
-        win.on_set_theme(move |mode| {
+        win.on_copy_clipboard(move |text: SharedString| {
+            let t = text.to_string();
+            if let Ok(mut cb) = arboard::Clipboard::new() {
+                let _ = cb.set_text(t.clone());
+            }
             if let Some(sw) = weak.upgrade() {
-                sw.set_theme_mode(mode);
+                sw.set_status_text(
+                    format!("已复制到剪贴板 ({} 字符)", t.chars().count()).into(),
+                );
             }
         });
     }
+
+    // 打开 Fcitx5 官方设置工具
+    {
+        let rt = rt.clone();
+        win.on_open_fcitx5_settings(move || {
+            rt.spawn(async move {
+                match tokio::process::Command::new("fcitx5-configtool").spawn() {
+                    Ok(_) => info!("Launched fcitx5-configtool"),
+                    Err(e) => warn!("Failed to launch fcitx5-configtool: {:#}", e),
+                }
+            });
+        });
+    }
+
+    // 刷新已发现的跨设备列表
     {
         let weak = win.as_weak();
-        win.on_set_lang(move |lang| {
+        win.on_refresh_peers(move || {
             if let Some(sw) = weak.upgrade() {
-                sw.set_asr_lang(lang);
+                let text = match crate::clipboard::sync_p2p::active_instance() {
+                    Some(m) => format!("已发现 {} 台设备 · mDNS 自动维护", m.peer_count()),
+                    None => "跨设备同步未运行 (检查开关与配对口令)".to_string(),
+                };
+                sw.set_peers_text(text.into());
             }
         });
     }
@@ -748,33 +841,48 @@ fn open_settings_window(
         let weak = win.as_weak();
         let shared = Arc::clone(shared);
         let config_path = config_path.clone();
-        let storage = Arc::clone(storage);
         let pill_weak = pill_weak.clone();
 
         win.on_save_settings(move || {
             let Some(sw) = weak.upgrade() else { return };
             let voice_shortcut = sw.get_voice_shortcut().to_string();
+            let clipboard_shortcut = sw.get_clipboard_shortcut().to_string();
             let start_hidden = sw.get_start_hidden();
             let auto_hide = sw.get_auto_hide();
             let allow_drag = sw.get_allow_drag();
-            let ui_theme = sw.get_theme_mode();
+            let push_to_talk = sw.get_push_to_talk();
             let asr_lang = sw.get_asr_lang();
             let auto_punctuation = sw.get_auto_punctuation();
-            let candidate_count = sw.get_candidate_count();
-            let phrases: Vec<String> =
-                sw.get_phrase_list().iter().map(|s| s.to_string()).collect();
+            let theme_mode = sw.get_theme_mode();
+            let font_size = sw.get_candidate_font_size();
+            let p2p_enabled = sw.get_p2p_enabled();
+            let device_name = sw.get_device_name().to_string();
+            let pair_secret = sw.get_pair_secret().to_string();
+            let port: u16 = sw.get_p2p_port().trim().parse().unwrap_or(42890);
 
             let mut saved_ok = false;
             {
                 let mut cfg = shared.lock().unwrap();
                 cfg.general.voice_shortcut = voice_shortcut.clone();
+                cfg.general.clipboard_shortcut = clipboard_shortcut.clone();
                 cfg.general.start_hidden = start_hidden;
                 cfg.general.auto_hide_after_commit = auto_hide;
                 cfg.general.allow_drag = allow_drag;
-                cfg.general.ui_theme = ui_theme;
-                cfg.general.candidate_count = candidate_count;
+                cfg.general.push_to_talk = push_to_talk;
+                cfg.general.ui_theme = theme_mode;
+                cfg.general.candidate_font_size = font_size.clamp(10, 22);
                 cfg.asr.language = asr_lang;
                 cfg.asr.auto_punctuation = auto_punctuation;
+                cfg.p2p_sync.enabled = p2p_enabled;
+                if !device_name.trim().is_empty() {
+                    cfg.p2p_sync.device_name = device_name.trim().to_string();
+                }
+                cfg.p2p_sync.pair_secret = pair_secret;
+                cfg.p2p_sync.port = if (1024..=65535).contains(&port) {
+                    port
+                } else {
+                    cfg.p2p_sync.port
+                };
 
                 match cfg.save_to_path(&config_path) {
                     Ok(()) => saved_ok = true,
@@ -787,19 +895,16 @@ fn open_settings_window(
 
             if saved_ok {
                 info!("Settings saved to {:?}", config_path);
-                if let Some(st) = storage.as_ref() {
-                    if let Err(e) = st.replace_quick_phrases(&phrases) {
-                        warn!("Failed to update quick phrases: {:#}", e);
-                    }
-                }
-                if let Err(e) = fcitx::apply_candidate_count(candidate_count) {
-                    debug!("Failed to write Fcitx5 candidate count: {:#}", e);
+                if let Err(e) = fcitx::apply_candidate_font_size(font_size.clamp(10, 22)) {
+                    debug!("Failed to write Fcitx5 font size: {:#}", e);
                 }
                 // 胶囊副标题中的快捷键即时刷新
                 if let Some(pill) = pill_weak.upgrade() {
                     pill.set_subtitle_text(default_subtitle(&voice_shortcut));
                 }
-                sw.set_status_text("设置已保存 ✓ (快捷键需重启应用后生效)".into());
+                sw.set_status_text(
+                    "设置已保存 ✓ (热键/跨设备需重启应用后生效)".into(),
+                );
             }
         });
     }

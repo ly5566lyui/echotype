@@ -27,6 +27,10 @@ pub struct GeneralConfig {
     pub ui_theme: i32,
     /// Fcitx5 候选词数量 (5/7/9), 保存时同步写入 fcitx5 配置
     pub candidate_count: i32,
+    /// Fcitx5 候选词字号 (pt), 写入 classicui.conf 的 Font
+    pub candidate_font_size: i32,
+    /// 按住说话 (push-to-talk): 热键按下开始录音、松开结束 (关闭则为开始/停止切换)
+    pub push_to_talk: bool,
 }
 
 impl Default for GeneralConfig {
@@ -40,6 +44,8 @@ impl Default for GeneralConfig {
             allow_drag: true,
             ui_theme: 0,
             candidate_count: 5,
+            candidate_font_size: 14,
+            push_to_talk: false,
         }
     }
 }

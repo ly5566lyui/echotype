@@ -13,7 +13,7 @@ use tokio::runtime::Handle;
 use tracing::{info, warn};
 use zbus::zvariant::{ObjectPath, OwnedObjectPath, OwnedValue, Value};
 
-use super::{HotkeyAction, ShortcutSpec};
+use super::{HotkeyEvent, HotkeyAction, ShortcutSpec};
 
 const PORTAL_DEST: &str = "org.freedesktop.portal.Desktop";
 const PORTAL_PATH: &str = "/org/freedesktop/portal/desktop";
@@ -24,7 +24,7 @@ const REQUEST_IFACE: &str = "org.freedesktop.portal.Request";
 /// 注册结果通过日志反馈，失败不影响应用其余功能。
 pub fn register(
     specs: Vec<ShortcutSpec>,
-    dispatch: Arc<dyn Fn(HotkeyAction) + Send + Sync>,
+    dispatch: Arc<dyn Fn(HotkeyEvent) + Send + Sync>,
     rt: Handle,
 ) -> tokio::task::JoinHandle<()> {
     rt.spawn(async move {
@@ -36,7 +36,7 @@ pub fn register(
 
 async fn run_portal(
     specs: Vec<ShortcutSpec>,
-    dispatch: Arc<dyn Fn(HotkeyAction) + Send + Sync>,
+    dispatch: Arc<dyn Fn(HotkeyEvent) + Send + Sync>,
 ) -> Result<()> {
     let conn = zbus::Connection::session()
         .await
@@ -150,27 +150,50 @@ async fn run_portal(
         .await
         .context("portal ListenShortcut failed")?;
 
-    // ---- 4. Activated 信号循环 ----
+    // ---- 4. Activated / Deactivated 信号循环 (按下与松开，支持按住说话) ----
     let session_proxy =
         zbus::Proxy::new(&conn, PORTAL_DEST, session_path.as_str(), PORTAL_IFACE).await?;
     let mut activated = session_proxy.receive_signal("Activated").await?;
+    let mut deactivated = session_proxy.receive_signal("Deactivated").await?;
 
     let triggers: Vec<String> = specs.iter().map(|s| s.shortcut.clone()).collect();
     info!("Portal global shortcuts active: {:?}", triggers);
 
-    while let Some(msg) = activated.next().await {
-        let parsed = msg
-            .body()
-            .deserialize::<(OwnedObjectPath, String, u64, HashMap<String, OwnedValue>)>();
-        match parsed {
-            Ok((_, shortcut_id, _, _)) => {
-                if let Some(spec) = specs.iter().find(|s| s.id == shortcut_id) {
-                    dispatch(spec.action);
-                }
-            }
-            Err(e) => warn!("Failed to parse Activated signal: {}", e),
+    loop {
+        tokio::select! {
+            msg = activated.next() => match msg {
+                Some(m) => handle_shortcut_signal(&m, true, &specs, &dispatch),
+                None => break,
+            },
+            msg = deactivated.next() => match msg {
+                Some(m) => handle_shortcut_signal(&m, false, &specs, &dispatch),
+                None => break,
+            },
         }
     }
 
-    bail!("portal Activated signal stream ended unexpectedly");
+    bail!("portal shortcut signal stream ended unexpectedly");
+}
+
+/// 解析 Activated/Deactivated 信号并分发 (两者消息体签名一致: (o s t a{sv}))
+fn handle_shortcut_signal(
+    msg: &zbus::message::Message,
+    is_press: bool,
+    specs: &[ShortcutSpec],
+    dispatch: &Arc<dyn Fn(HotkeyEvent) + Send + Sync>,
+) {
+    match msg
+        .body()
+        .deserialize::<(OwnedObjectPath, String, u64, HashMap<String, OwnedValue>)>()
+    {
+        Ok((_, shortcut_id, _, _)) => {
+            if let Some(spec) = specs.iter().find(|s| s.id == shortcut_id) {
+                dispatch(HotkeyEvent {
+                    action: spec.action,
+                    is_press,
+                });
+            }
+        }
+        Err(e) => warn!("Failed to parse shortcut signal: {}", e),
+    }
 }

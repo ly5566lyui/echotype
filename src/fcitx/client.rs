@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tracing::{debug, info, warn};
 use zbus::Connection;
@@ -190,13 +190,33 @@ pub async fn commit_string_cached(text: &str) -> Result<()> {
 /// (`~/.config/fcitx5/conf/pinyin.conf` 的 `PageSize`)。
 /// 若该配置不存在则创建；需重启 Fcitx5 后生效。失败不影响主流程。
 pub fn apply_candidate_count(count: i32) -> Result<()> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let conf_dir = PathBuf::from(&home).join(".config/fcitx5/conf");
-    let conf_file = conf_dir.join("pinyin.conf");
-    std::fs::create_dir_all(&conf_dir)?;
+    apply_conf_key(
+        &PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string()))
+            .join(".config/fcitx5/conf")
+            .join("pinyin.conf"),
+        "PageSize",
+        &count.to_string(),
+    )
+}
 
-    let key = "PageSize";
-    let content = std::fs::read_to_string(&conf_file).unwrap_or_default();
+/// 将候选词字号写入 Fcitx5 经典界面配置 (`~/.config/fcitx5/conf/classicui.conf`
+/// 的 `Font="Noto Sans CJK SC {size}"`)。需重启 Fcitx5 后生效。失败不影响主流程。
+pub fn apply_candidate_font_size(size: i32) -> Result<()> {
+    apply_conf_key(
+        &PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string()))
+            .join(".config/fcitx5/conf")
+            .join("classicui.conf"),
+        "Font",
+        &format!("\"Noto Sans CJK SC {}\"", size),
+    )
+}
+
+/// 通用 fcitx5 conf 键写入: 替换已有键值，不存在则追加 (保留其余行)
+fn apply_conf_key(conf_file: &Path, key: &str, value: &str) -> Result<()> {
+    if let Some(parent) = conf_file.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let content = std::fs::read_to_string(conf_file).unwrap_or_default();
     let mut out = String::new();
     let mut replaced = false;
     for line in content.lines() {
@@ -205,7 +225,7 @@ pub fn apply_candidate_count(count: i32) -> Result<()> {
             None => false,
         };
         if is_target {
-            out.push_str(&format!("{}={}\n", key, count));
+            out.push_str(&format!("{}={}\n", key, value));
             replaced = true;
         } else {
             out.push_str(line);
@@ -213,10 +233,9 @@ pub fn apply_candidate_count(count: i32) -> Result<()> {
         }
     }
     if !replaced {
-        out.push_str(&format!("{}={}\n", key, count));
+        out.push_str(&format!("{}={}\n", key, value));
     }
-
-    std::fs::write(&conf_file, out)?;
-    info!("Fcitx5 pinyin PageSize set to {} in {:?}", count, conf_file);
+    std::fs::write(conf_file, out)?;
+    info!("Fcitx5 conf updated: {} = {} in {:?}", key, value, conf_file);
     Ok(())
 }

@@ -65,6 +65,14 @@ struct P2pInner {
     outbound: mpsc::UnboundedSender<String>,
 }
 
+/// 当前活动的同步实例 (GUI 单例场景下供设置窗口查询对端状态)
+static ACTIVE_INSTANCE: Mutex<Option<Arc<P2pSyncManager>>> = Mutex::new(None);
+
+/// 获取当前活动的 P2P 同步实例 (未启动时为 None)
+pub fn active_instance() -> Option<Arc<P2pSyncManager>> {
+    ACTIVE_INSTANCE.lock().ok().and_then(|g| g.clone())
+}
+
 impl P2pSyncManager {
     /// 启动 P2P 同步 (注册并浏览 mDNS、开启 TCP 服务端、启动发送泵)。
     /// 必须在 tokio 运行时上下文中调用。
@@ -92,6 +100,11 @@ impl P2pSyncManager {
             fullname,
             inner,
         });
+
+        // 登记为全局活动实例 (供设置窗口查询)
+        if let Ok(mut g) = ACTIVE_INSTANCE.lock() {
+            *g = Some(Arc::clone(&manager));
+        }
 
         // 1. mDNS 注册 + 对端发现 (阻塞式 API，放到独立线程池)
         {

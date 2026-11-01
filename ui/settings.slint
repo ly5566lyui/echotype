@@ -1,940 +1,627 @@
+import { LineEdit, Slider } from "std-widgets.slint";
+
+// 对齐官方微信输入法设置中心的浅色风格 (微信绿 #07C160)
+    component Toggle inherits Rectangle {
+        in property <bool> checked;
+        callback toggled();
+        width: 44px;
+        height: 24px;
+        border-radius: 12px;
+        background: root.checked ? #07C160 : #e5e6eb;
+        Rectangle {
+            width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            background: white;
+            x: root.checked ? 23px : 3px;
+            y: 3px;
+            animate x { duration: 150ms; }
+        }
+        TouchArea { clicked => { root.toggled(); } }
+    }
+
+    component Radio inherits Rectangle {
+        in property <bool> checked;
+        callback picked();
+        width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        border-width: 2px;
+        border-color: root.checked ? #07C160 : #c9cdd4;
+        if root.checked : Rectangle {
+            width: 8px; height: 8px;
+            border-radius: 4px;
+            background: #07C160;
+            x: 3px; y: 3px;
+        }
+        TouchArea { clicked => { root.picked(); } }
+    }
+
+    component SideItem inherits Rectangle {
+        in property <bool> sel;
+        in property <string> icon;
+        in property <string> label;
+        callback picked();
+        height: 42px;
+        border-radius: 10px;
+        background: root.sel ? #07C160 : (ta.has-hover ? #f2f3f5 : transparent);
+        HorizontalLayout {
+            padding-left: 14px;
+            alignment: start;
+            Text {
+                text: root.icon + "  " + root.label;
+                color: root.sel ? white : #1f2329;
+                font-size: 14px;
+                font-weight: root.sel ? 600 : 400;
+                vertical-alignment: center;
+            }
+        }
+        ta := TouchArea { clicked => { root.picked(); } }
+    }
+
+    component OptionRow inherits Rectangle {
+        in property <string> title;
+        in property <string> desc;
+        in property <bool> checked;
+        callback toggled();
+        height: 64px;
+        border-radius: 12px;
+        background: white;
+        border-width: 1px;
+        border-color: #00000012;
+        HorizontalLayout {
+            padding-left: 16px;
+            padding-right: 16px;
+            alignment: space-between;
+            VerticalLayout {
+                alignment: center;
+                spacing: 3px;
+                Text { text: root.title; color: #1f2329; font-size: 14px; font-weight: 600; }
+                Text { text: root.desc; color: #8a9099; font-size: 11px; }
+            }
+            Toggle { checked: root.checked; toggled => { root.toggled(); } }
+        }
+    }
+
+    component ChoiceRow inherits Rectangle {
+        in property <string> title;
+        in property <string> desc;
+        in property <int> sel;
+        in property <[string]> options;
+        callback picked(int);
+        height: 64px;
+        border-radius: 12px;
+        background: white;
+        border-width: 1px;
+        border-color: #00000012;
+        HorizontalLayout {
+            padding-left: 16px;
+            padding-right: 16px;
+            alignment: space-between;
+            VerticalLayout {
+                alignment: center;
+                spacing: 3px;
+                Text { text: root.title; color: #1f2329; font-size: 14px; font-weight: 600; }
+                Text { text: root.desc; color: #8a9099; font-size: 11px; }
+            }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 8px;
+                for opt[i] in root.options : Rectangle {
+                    property <bool> is-sel: root.sel == i;
+                    width: 86px; height: 30px;
+                    border-radius: 8px;
+                    background: is-sel ? #07C160 : #f2f3f5;
+                    Text {
+                        text: opt;
+                        color: is-sel ? white : #1f2329;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    TouchArea { clicked => { root.picked(i); } }
+                }
+            }
+        }
+    }
+
 export component SettingsWindow inherits Window {
     title: "微信键盘 设置";
-    width: 680px;
-    height: 520px;
-    background: #191b1f;
+    width: 780px;
+    height: 560px;
+    background: #f7f8fa;
 
     in-out property <int> active-tab: 0;
+    in-out property <int> phrase-subtab: 0; // 0 常用语 1 剪贴板
     in-out property <bool> start-hidden: false;
     in-out property <bool> auto-hide: false;
     in-out property <bool> allow-drag: true;
     in-out property <string> voice-shortcut: "Ctrl+Alt+V";
-    in-out property <int> asr-lang: 0; // 0: 普通话, 1: 英语, 2: 粤语
+    in-out property <string> clipboard-shortcut: "Ctrl+Alt+H";
+    in-out property <bool> push-to-talk: false;
+    in-out property <int> asr-lang: 0; // 0 普通话 1 英语 2 粤语
     in-out property <bool> auto-punctuation: true;
-    in-out property <int> theme-mode: 0; // 0: 深色, 1: 浅色, 2: 跟随系统
-    in-out property <int> candidate-count: 5;
+    in-out property <int> theme-mode: 0; // 0 深色沉浸 1 极简纯白
+    in-out property <int> candidate-font-size: 14;
+    in-out property <bool> p2p-enabled: false;
+    in-out property <string> device-name: "Linux-Desktop";
+    in-out property <string> pair-secret: "";
+    in-out property <string> p2p-port: "42890";
+    in-out property <string> peers-text: "尚未发现设备";
+    in-out property <string> current-im: "Fcitx5 + Rime (雾凇拼音)";
+    in-out property <[string]> phrase-list: [];
+    in-out property <[string]> clipboard-list: [];
     in-out property <string> status-text: "";
-    in-out property <[string]> phrase-list: [
-        "收到，马上处理！",
-        "好的，没问题。",
-        "辛苦了，非常感谢！",
-        "请稍等片刻，马上给您回复。",
-        "微信键盘 Linux 极简模式体验中。"
-    ];
+    in-out property <string> phrase-new: "";
 
     callback close-settings();
     callback save-settings();
-    callback set-shortcut(string);
-    callback toggle-start-hidden();
-    callback toggle-auto-hide();
-    callback toggle-allow-drag();
-    callback set-theme(int);
-    callback set-lang(int);
+    callback open-fcitx5-settings();
+    callback set-voice-shortcut(string);
+    callback set-clipboard-shortcut(string);
+    callback add-phrase(string);
+    callback delete-phrase(string);
+    callback copy-clipboard(string);
+    callback refresh-peers();
 
-    VerticalLayout {
-        padding: 0px;
-        spacing: 0px;
-
-        // 顶栏 (官方微信键盘 Header)
+    // ---------- 主布局 ----------
+    HorizontalLayout {
+        // 左侧导航
         Rectangle {
-            height: 54px;
-            background: #202227;
+            width: 190px;
+            background: white;
+            Rectangle { x: 189px; width: 1px; height: 100%; background: #0000000d; }
 
-            HorizontalLayout {
-                padding-left: 20px;
-                padding-right: 20px;
-                alignment: space-between;
-
-                HorizontalLayout {
-                    alignment: center;
-                    spacing: 12px;
-
-                    Image {
-                        source: @image-url("assets/logo.png");
-                        width: 32px;
-                        height: 32px;
-                        vertical-alignment: center;
-                    }
-
-                    Text {
-                        text: "微信键盘 设置中心";
-                        color: #ffffff;
-                        font-size: 16px;
-                        font-weight: 700;
-                        vertical-alignment: center;
-                    }
-
-                    Rectangle {
-                        width: 58px;
-                        height: 20px;
-                        border-radius: 10px;
-                        background: #23c89122;
-                        border-width: 1px;
-                        border-color: #23c89155;
-
-                        Text {
-                            text: "Linux 原生";
-                            color: #23c891;
-                            font-size: 10px;
-                            font-weight: 600;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                }
+            VerticalLayout {
+                padding-top: 14px; padding-bottom: 14px; padding-left: 12px; padding-right: 12px;
+                spacing: 4px;
 
                 HorizontalLayout {
-                    alignment: center;
+                    padding-left: 6px;
+                    spacing: 8px;
+                    alignment: start;
                     Rectangle {
-                        width: 32px;
-                        height: 32px;
-                        border-radius: 16px;
-                        background: close-touch.has-hover ? #ff525233 : transparent;
-
-                        Text {
-                            text: "✕";
-                            color: close-touch.has-hover ? #ff5252 : #9ca3af;
-                            font-size: 14px;
-                            font-weight: 600;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-
-                        close-touch := TouchArea {
-                            clicked => { root.close-settings(); }
-                        }
+                        width: 30px; height: 30px; border-radius: 15px;
+                        background: #07C160;
+                        Text { text: "微"; color: white; font-size: 14px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
                     }
+                    Text { text: "微信键盘"; color: #1f2329; font-size: 15px; font-weight: 700; vertical-alignment: center; }
                 }
-            }
 
-            // 顶栏底部分隔线
-            Rectangle {
-                y: 53px;
-                height: 1px;
-                width: 100%;
-                background: #ffffff12;
+                Rectangle { height: 8px; }
+
+                SideItem { sel: root.active-tab == 0; icon: "⌨️"; label: "输入"; picked => { root.active-tab = 0; } }
+                SideItem { sel: root.active-tab == 1; icon: "🎙️"; label: "语音输入"; picked => { root.active-tab = 1; } }
+                SideItem { sel: root.active-tab == 2; icon: "📦"; label: "常用语和剪贴板"; picked => { root.active-tab = 2; } }
+                SideItem { sel: root.active-tab == 3; icon: "🎨"; label: "外观"; picked => { root.active-tab = 3; } }
+                SideItem { sel: root.active-tab == 4; icon: "⌘"; label: "快捷键"; picked => { root.active-tab = 4; } }
+                SideItem { sel: root.active-tab == 5; icon: "🖥️"; label: "跨设备"; picked => { root.active-tab = 5; } }
+                SideItem { sel: root.active-tab == 6; icon: "ℹ️"; label: "关于与反馈"; picked => { root.active-tab = 6; } }
             }
         }
 
-        // 主体双栏内容
-        HorizontalLayout {
-            // 左侧边栏导航
+        // 右侧内容
+        VerticalLayout {
+            padding: 0px;
+
+            // 顶栏
             Rectangle {
-                width: 180px;
-                background: #1c1e23;
-
-                // 右侧边线
-                Rectangle {
-                    x: 179px;
-                    width: 1px;
-                    height: 100%;
-                    background: #ffffff0a;
+                height: 44px;
+                background: #f7f8fa;
+                HorizontalLayout {
+                    padding-left: 24px;
+                    padding-right: 20px;
+                    alignment: space-between;
+                    Text {
+                        text: root.active-tab == 0 ? "输入" : root.active-tab == 1 ? "语音输入" : root.active-tab == 2 ? "常用语和剪贴板" : root.active-tab == 3 ? "外观" : root.active-tab == 4 ? "快捷键" : root.active-tab == 5 ? "跨设备" : "关于与反馈";
+                        color: #1f2329; font-size: 16px; font-weight: 700; vertical-alignment: center;
+                    }
+                    Rectangle {
+                        width: 28px; height: 28px; border-radius: 14px;
+                        background: close-ta.has-hover ? #f0f1f2 : transparent;
+                        Text { text: "✕"; color: close-ta.has-hover ? #1f2329 : #8a9099; font-size: 14px; horizontal-alignment: center; vertical-alignment: center; }
+                        close-ta := TouchArea { clicked => { root.close-settings(); } }
+                    }
                 }
+            }
 
+            // 内容区
+            Flickable {
                 VerticalLayout {
-                    padding-top: 16px;
-                    padding-bottom: 16px;
-                    padding-left: 12px;
-                    padding-right: 12px;
-                    spacing: 4px;
+                    padding-top: 0px; padding-bottom: 16px; padding-left: 24px; padding-right: 24px;
+                    spacing: 14px;
 
-                    // Tab 0: 常用与显示
-                    t0 := Rectangle {
-                        height: 40px;
-                        border-radius: 10px;
-                        background: root.active-tab == 0 ? #252830 : (t0-touch.has-hover ? #22252b : transparent);
-
-                        HorizontalLayout {
-                            padding-left: 14px;
-                            alignment: start;
-                            Text {
-                                text: "⚙️ 常用与显示";
-                                color: root.active-tab == 0 ? #ffffff : #9ca3af;
-                                font-size: 13px;
-                                font-weight: root.active-tab == 0 ? 700 : 500;
-                                vertical-alignment: center;
+                    // ===== Tab 0 输入 =====
+                    if root.active-tab == 0 : VerticalLayout {
+                        spacing: 14px;
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 96px;
+                            VerticalLayout {
+                                padding-top: 14px; padding-bottom: 14px; padding-left: 16px; padding-right: 16px; spacing: 6px;
+                                Text { text: "输入引擎"; color: #1f2329; font-size: 14px; font-weight: 600; }
+                                Text { text: "当前引擎: " + root.current-im; color: #8a9099; font-size: 12px; }
+                                Text { text: "拼音 / 双拼 / 五笔 / 模糊拼音 / 符号行为等由 Fcitx5 与 Rime 管理"; color: #8a9099; font-size: 11px; }
                             }
                         }
-
-                        if root.active-tab == 0 : Rectangle {
-                            x: 0px;
-                            width: 3px;
-                            height: 24px;
-                            y: 8px;
-                            border-radius: 1.5px;
-                            background: #23c891;
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 64px;
+                            HorizontalLayout {
+                                padding-left: 16px; padding-right: 16px; alignment: space-between;
+                                VerticalLayout {
+                                    alignment: center; spacing: 3px;
+                                    Text { text: "调整输入法详细行为"; color: #1f2329; font-size: 14px; font-weight: 600; }
+                                    Text { text: "打开 Fcitx5 官方设置工具 (需系统已安装 fcitx5-configtool)"; color: #8a9099; font-size: 11px; }
+                                }
+                                Rectangle {
+                                    width: 120px; height: 32px; border-radius: 8px; background: #07C160;
+                                    Text { text: "打开设置"; color: white; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { root.open-fcitx5-settings(); } }
+                                }
+                            }
                         }
-
-                        t0-touch := TouchArea { clicked => { root.active-tab = 0; } }
                     }
 
-                    // Tab 1: 快捷键设置
-                    t1 := Rectangle {
-                        height: 40px;
-                        border-radius: 10px;
-                        background: root.active-tab == 1 ? #252830 : (t1-touch.has-hover ? #22252b : transparent);
-
-                        HorizontalLayout {
-                            padding-left: 14px;
-                            alignment: start;
-                            Text {
-                                text: "⌨️ 快捷键设置";
-                                color: root.active-tab == 1 ? #ffffff : #9ca3af;
-                                font-size: 13px;
-                                font-weight: root.active-tab == 1 ? 700 : 500;
-                                vertical-alignment: center;
+                    // ===== Tab 1 语音输入 =====
+                    if root.active-tab == 1 : VerticalLayout {
+                        spacing: 14px;
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 108px;
+                            VerticalLayout {
+                                padding-top: 12px; padding-bottom: 12px; padding-left: 16px; padding-right: 16px; spacing: 8px;
+                                Text { text: "说话方式"; color: #1f2329; font-size: 14px; font-weight: 600; }
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Radio { checked: !root.push-to-talk; picked => { root.push-to-talk = false; } }
+                                    Text { text: "再次点击结束 (按快捷键开始，再按结束)"; color: #1f2329; font-size: 13px; vertical-alignment: center; }
+                                }
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Radio { checked: root.push-to-talk; picked => { root.push-to-talk = true; } }
+                                    Text { text: "按住说话 (按下开始录音，松开自动结束并上屏)"; color: #1f2329; font-size: 13px; vertical-alignment: center; }
+                                }
                             }
                         }
-
-                        if root.active-tab == 1 : Rectangle {
-                            x: 0px;
-                            width: 3px;
-                            height: 24px;
-                            y: 8px;
-                            border-radius: 1.5px;
-                            background: #23c891;
+                        ChoiceRow {
+                            title: "语音快捷键";
+                            desc: "全局呼出语音输入 (保存并重启应用后生效)";
+                            sel: root.voice-shortcut == "Ctrl+Alt+V" ? 0 : root.voice-shortcut == "Alt+Space" ? 1 : 2;
+                            options: ["Ctrl+Alt+V", "Alt+Space", "Super+V"];
+                            picked(i) => { root.set-voice-shortcut(["Ctrl+Alt+V", "Alt+Space", "Super+V"][i]); }
                         }
-
-                        t1-touch := TouchArea { clicked => { root.active-tab = 1; } }
+                        OptionRow {
+                            title: "智能断句与标点符号";
+                            desc: "预留: 依据自然停顿插入标点 (当前随引擎行为)";
+                            checked: root.auto-punctuation;
+                            toggled => { root.auto-punctuation = !root.auto-punctuation; }
+                        }
+                        ChoiceRow {
+                            title: "识别语种偏好";
+                            desc: "预留: 当前离线引擎为中文 Paraformer";
+                            sel: root.asr-lang;
+                            options: ["普通话", "英语", "粤语"];
+                            picked(i) => { root.asr-lang = i; }
+                        }
                     }
 
-                    // Tab 2: 语音与识别
-                    t2 := Rectangle {
-                        height: 40px;
-                        border-radius: 10px;
-                        background: root.active-tab == 2 ? #252830 : (t2-touch.has-hover ? #22252b : transparent);
-
-                        HorizontalLayout {
-                            padding-left: 14px;
-                            alignment: start;
-                            Text {
-                                text: "🎙️ 语音与识别";
-                                color: root.active-tab == 2 ? #ffffff : #9ca3af;
-                                font-size: 13px;
-                                font-weight: root.active-tab == 2 ? 700 : 500;
-                                vertical-alignment: center;
+                    // ===== Tab 2 常用语和剪贴板 =====
+                    if root.active-tab == 2 : VerticalLayout {
+                        spacing: 12px;
+                        Rectangle {
+                            height: 36px;
+                            HorizontalLayout {
+                                spacing: 0px;
+                                Rectangle {
+                                    property <bool> is-sel: root.phrase-subtab == 0;
+                                    HorizontalLayout { alignment: center; Text { text: "常用语"; color: is-sel ? white : #1f2329; font-size: 13px; horizontal-alignment: center; vertical-alignment: center; } }
+                                    background: is-sel ? #07C160 : white;
+                                    border-radius: 8px; border-width: 1px; border-color: #00000012;
+                                    TouchArea { clicked => { root.phrase-subtab = 0; } }
+                                }
+                                Rectangle {
+                                    property <bool> is-sel: root.phrase-subtab == 1;
+                                    HorizontalLayout { alignment: center; Text { text: "剪贴板"; color: is-sel ? white : #1f2329; font-size: 13px; horizontal-alignment: center; vertical-alignment: center; } }
+                                    background: is-sel ? #07C160 : white;
+                                    border-radius: 8px; border-width: 1px; border-color: #00000012;
+                                    TouchArea { clicked => { root.phrase-subtab = 1; } }
+                                }
                             }
                         }
 
-                        if root.active-tab == 2 : Rectangle {
-                            x: 0px;
-                            width: 3px;
-                            height: 24px;
-                            y: 8px;
-                            border-radius: 1.5px;
-                            background: #23c891;
+                        // 常用语子页
+                        if root.phrase-subtab == 0 : VerticalLayout {
+                            spacing: 12px;
+                            Rectangle {
+                                border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                                height: 56px;
+                                HorizontalLayout {
+                                    padding-left: 14px; padding-right: 12px; spacing: 10px;
+                                    LineEdit {
+                                        text <=> root.phrase-new;
+                                        placeholder-text: "输入常用语后回车或点添加";
+                                    }
+                                    Rectangle {
+                                        width: 72px; height: 32px; border-radius: 8px; background: #07C160;
+                                        Text { text: "添加"; color: white; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                        TouchArea { clicked => { root.add-phrase(root.phrase-new); } }
+                                    }
+                                }
+                            }
+                            Text { text: "共 " + root.phrase-list.length + " 条 · 点击 ✕ 删除，立即生效"; color: #8a9099; font-size: 11px; }
+                            Flickable {
+                                VerticalLayout {
+                                    spacing: 8px;
+                                    for phrase in root.phrase-list : Rectangle {
+                                        height: 42px;
+                                        border-radius: 10px; background: white; border-width: 1px; border-color: #00000012;
+                                        HorizontalLayout {
+                                            padding-left: 14px; padding-right: 10px; alignment: space-between;
+                                            Text { text: phrase; color: #1f2329; font-size: 13px; vertical-alignment: center; overflow: elide; }
+                                            Rectangle {
+                                                width: 24px; height: 24px; border-radius: 12px;
+                                                background: del-ta.has-hover ? #ffecec : transparent;
+                                                Text { text: "✕"; color: del-ta.has-hover ? #fa5151 : #c9cdd4; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                                                del-ta := TouchArea { clicked => { root.delete-phrase(phrase); } }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
-                        t2-touch := TouchArea { clicked => { root.active-tab = 2; } }
+                        // 剪贴板子页
+                        if root.phrase-subtab == 1 : VerticalLayout {
+                            spacing: 12px;
+                            Text { text: "最近 20 条 · 点击条目复制到剪贴板"; color: #8a9099; font-size: 11px; }
+                            Flickable {
+                                VerticalLayout {
+                                    spacing: 8px;
+                                    for clip in root.clipboard-list : Rectangle {
+                                        height: 42px;
+                                        border-radius: 10px; background: white; border-width: 1px; border-color: #00000012;
+                                        HorizontalLayout {
+                                            padding-left: 14px; padding-right: 10px; alignment: space-between;
+                                            Text { text: clip; color: #1f2329; font-size: 13px; vertical-alignment: center; overflow: elide; }
+                                            Text { text: "复制"; color: #07C160; font-size: 12px; vertical-alignment: center; }
+                                        }
+                                        TouchArea { clicked => { root.copy-clipboard(clip); } }
+                                    }
+                                    if root.clipboard-list.length == 0 : Text {
+                                        text: "暂无剪贴板历史"; color: #c9cdd4; font-size: 13px; horizontal-alignment: center;
+                                    }
+                                }
+                            }
+                        }
                     }
 
-                    // Tab 3: 外观与皮肤
-                    t3 := Rectangle {
-                        height: 40px;
-                        border-radius: 10px;
-                        background: root.active-tab == 3 ? #252830 : (t3-touch.has-hover ? #22252b : transparent);
-
-                        HorizontalLayout {
-                            padding-left: 14px;
-                            alignment: start;
-                            Text {
-                                text: "🎨 外观与主题";
-                                color: root.active-tab == 3 ? #ffffff : #9ca3af;
-                                font-size: 13px;
-                                font-weight: root.active-tab == 3 ? 700 : 500;
-                                vertical-alignment: center;
+                    // ===== Tab 3 外观 =====
+                    if root.active-tab == 3 : VerticalLayout {
+                        spacing: 14px;
+                        // 候选词实时预览 (官方同款绿色渐变)
+                        Rectangle {
+                            height: 120px;
+                            border-radius: 12px;
+                            background: @linear-gradient(90deg, #d3f2e3, #a8e6c8);
+                            VerticalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    height: 44px; width: 520px;
+                                    background: white; border-radius: 10px;
+                                    HorizontalLayout {
+                                        padding-left: 16px; padding-right: 10px; spacing: 18px; alignment: start;
+                                        Text { text: "1"; color: white; font-size: root.candidate-font-size * 1px; vertical-alignment: center; }
+                                        Rectangle { width: 26px; height: 26px; border-radius: 6px; background: #07C160; Text { text: "微信"; color: white; font-size: root.candidate-font-size * 1px; horizontal-alignment: center; vertical-alignment: center; } }
+                                        Text { text: "2 微信输入法"; color: #1f2329; font-size: root.candidate-font-size * 1px; vertical-alignment: center; }
+                                        Text { text: "3 连心"; color: #1f2329; font-size: root.candidate-font-size * 1px; vertical-alignment: center; }
+                                        Text { text: "4 为新"; color: #1f2329; font-size: root.candidate-font-size * 1px; vertical-alignment: center; }
+                                        Text { text: "5 唯心"; color: #1f2329; font-size: root.candidate-font-size * 1px; vertical-alignment: center; }
+                                    }
+                                }
                             }
                         }
-
-                        if root.active-tab == 3 : Rectangle {
-                            x: 0px;
-                            width: 3px;
-                            height: 24px;
-                            y: 8px;
-                            border-radius: 1.5px;
-                            background: #23c891;
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 76px;
+                            VerticalLayout {
+                                padding-top: 12px; padding-bottom: 12px; padding-left: 16px; padding-right: 16px; spacing: 4px;
+                                Text { text: "候选字大小"; color: #1f2329; font-size: 14px; font-weight: 600; }
+                                Slider {
+                                    minimum: 10; maximum: 22;
+                                    value: root.candidate-font-size;
+                                    changed value => { root.candidate-font-size = self.value; }
+                                }
+                            }
                         }
-
-                        t3-touch := TouchArea { clicked => { root.active-tab = 3; } }
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 64px;
+                            HorizontalLayout {
+                                padding-left: 16px; padding-right: 16px; alignment: space-between;
+                                VerticalLayout {
+                                    alignment: center; spacing: 3px;
+                                    Text { text: "主题模式"; color: #1f2329; font-size: 14px; font-weight: 600; }
+                                    Text { text: "浅色主题预留中，当前悬浮胶囊为深色沉浸"; color: #8a9099; font-size: 11px; }
+                                }
+                                HorizontalLayout {
+                                    alignment: center; spacing: 8px;
+                                    Rectangle {
+                                        width: 86px; height: 30px; border-radius: 8px;
+                                        background: root.theme-mode == 0 ? #07C160 : #f2f3f5;
+                                        Text { text: "深色沉浸"; color: root.theme-mode == 0 ? white : #1f2329; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                                        TouchArea { clicked => { root.theme-mode = 0; } }
+                                    }
+                                    Rectangle {
+                                        width: 86px; height: 30px; border-radius: 8px;
+                                        background: root.theme-mode == 1 ? #07C160 : #f2f3f5;
+                                        Text { text: "极简纯白"; color: root.theme-mode == 1 ? white : #1f2329; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                                        TouchArea { clicked => { root.theme-mode = 1; } }
+                                    }
+                                }
+                            }
+                        }
+                        OptionRow {
+                            title: "启动时后台静默待命";
+                            desc: "开机或启动后不弹出悬浮窗，按下快捷键唤出";
+                            checked: root.start-hidden;
+                            toggled => { root.start-hidden = !root.start-hidden; }
+                        }
+                        OptionRow {
+                            title: "文字上屏后自动隐藏";
+                            desc: "语音或常用语完成输入后，胶囊自动淡出";
+                            checked: root.auto-hide;
+                            toggled => { root.auto-hide = !root.auto-hide; }
+                        }
+                        OptionRow {
+                            title: "允许鼠标自由拖拽悬浮窗";
+                            desc: "按住胶囊顶部即可拖动至屏幕任意位置";
+                            checked: root.allow-drag;
+                            toggled => { root.allow-drag = !root.allow-drag; }
+                        }
                     }
 
-                    // Tab 4: 常用短语管理
-                    t4 := Rectangle {
-                        height: 40px;
-                        border-radius: 10px;
-                        background: root.active-tab == 4 ? #252830 : (t4-touch.has-hover ? #22252b : transparent);
-
-                        HorizontalLayout {
-                            padding-left: 14px;
-                            alignment: start;
-                            Text {
-                                text: "📋 常用短语";
-                                color: root.active-tab == 4 ? #ffffff : #9ca3af;
-                                font-size: 13px;
-                                font-weight: root.active-tab == 4 ? 700 : 500;
-                                vertical-alignment: center;
+                    // ===== Tab 4 快捷键 =====
+                    if root.active-tab == 4 : VerticalLayout {
+                        spacing: 14px;
+                        ChoiceRow {
+                            title: "语音输入快捷键";
+                            desc: "全局呼出语音输入 (保存并重启应用后生效)";
+                            sel: root.voice-shortcut == "Ctrl+Alt+V" ? 0 : root.voice-shortcut == "Alt+Space" ? 1 : 2;
+                            options: ["Ctrl+Alt+V", "Alt+Space", "Super+V"];
+                            picked(i) => { root.set-voice-shortcut(["Ctrl+Alt+V", "Alt+Space", "Super+V"][i]); }
+                        }
+                        ChoiceRow {
+                            title: "剪贴板 / 常用语抽屉快捷键";
+                            desc: "全局唤起抽屉 (保存并重启应用后生效)";
+                            sel: root.clipboard-shortcut == "Ctrl+Alt+H" ? 0 : root.clipboard-shortcut == "Alt+H" ? 1 : 2;
+                            options: ["Ctrl+Alt+H", "Alt+H", "Super+H"];
+                            picked(i) => { root.set-clipboard-shortcut(["Ctrl+Alt+H", "Alt+H", "Super+H"][i]); }
+                        }
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 64px;
+                            HorizontalLayout {
+                                padding-left: 16px; padding-right: 16px; alignment: space-between;
+                                VerticalLayout {
+                                    alignment: center; spacing: 3px;
+                                    Text { text: "中英文切换"; color: #1f2329; font-size: 14px; font-weight: 600; }
+                                    Text { text: "系统默认支持 \"Ctrl + 空格\" 切换中英文，由 Fcitx5 管理"; color: #8a9099; font-size: 11px; }
+                                }
+                                Text { text: "Fcitx5 管理"; color: #8a9099; font-size: 12px; vertical-alignment: center; }
                             }
                         }
-
-                        if root.active-tab == 4 : Rectangle {
-                            x: 0px;
-                            width: 3px;
-                            height: 24px;
-                            y: 8px;
-                            border-radius: 1.5px;
-                            background: #23c891;
-                        }
-
-                        t4-touch := TouchArea { clicked => { root.active-tab = 4; } }
                     }
 
-                    // Tab 5: 关于微信键盘
-                    t5 := Rectangle {
-                        height: 40px;
-                        border-radius: 10px;
-                        background: root.active-tab == 5 ? #252830 : (t5-touch.has-hover ? #22252b : transparent);
-
-                        HorizontalLayout {
-                            padding-left: 14px;
-                            alignment: start;
-                            Text {
-                                text: "ℹ️ 关于我们";
-                                color: root.active-tab == 5 ? #ffffff : #9ca3af;
-                                font-size: 13px;
-                                font-weight: root.active-tab == 5 ? 700 : 500;
-                                vertical-alignment: center;
+                    // ===== Tab 5 跨设备 =====
+                    if root.active-tab == 5 : VerticalLayout {
+                        spacing: 14px;
+                        OptionRow {
+                            title: "跨设备复制粘贴";
+                            desc: "局域网内与其他 WeType-Linux 设备双向同步剪贴板 (mDNS + AES-256-GCM)";
+                            checked: root.p2p-enabled;
+                            toggled => { root.p2p-enabled = !root.p2p-enabled; }
+                        }
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 56px;
+                            HorizontalLayout {
+                                padding-left: 16px; padding-right: 16px; spacing: 14px;
+                                Text { text: "本机设备名"; color: #1f2329; font-size: 14px; vertical-alignment: center; width: 96px; }
+                                LineEdit { text <=> root.device-name; }
                             }
                         }
-
-                        if root.active-tab == 5 : Rectangle {
-                            x: 0px;
-                            width: 3px;
-                            height: 24px;
-                            y: 8px;
-                            border-radius: 1.5px;
-                            background: #23c891;
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 56px;
+                            HorizontalLayout {
+                                padding-left: 16px; padding-right: 16px; spacing: 14px;
+                                Text { text: "配对口令"; color: #1f2329; font-size: 14px; vertical-alignment: center; width: 96px; }
+                                LineEdit { text <=> root.pair-secret; placeholder-text: "所有设备须一致，为空则不同步"; }
+                            }
                         }
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 56px;
+                            HorizontalLayout {
+                                padding-left: 16px; padding-right: 16px; spacing: 14px;
+                                Text { text: "同步端口"; color: #1f2329; font-size: 14px; vertical-alignment: center; width: 96px; }
+                                LineEdit { text <=> root.p2p-port; }
+                            }
+                        }
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 64px;
+                            HorizontalLayout {
+                                padding-left: 16px; padding-right: 16px; alignment: space-between;
+                                VerticalLayout {
+                                    alignment: center; spacing: 3px;
+                                    Text { text: "已发现设备"; color: #1f2329; font-size: 14px; font-weight: 600; }
+                                    Text { text: root.peers-text; color: #8a9099; font-size: 11px; }
+                                }
+                                Rectangle {
+                                    width: 72px; height: 30px; border-radius: 8px; background: #f2f3f5;
+                                    Text { text: "刷新"; color: #1f2329; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { root.refresh-peers(); } }
+                                }
+                            }
+                        }
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 64px;
+                            HorizontalLayout {
+                                padding-left: 16px; padding-right: 16px; alignment: space-between;
+                                VerticalLayout {
+                                    alignment: center; spacing: 3px;
+                                    Text { text: "常用语云同步"; color: #1f2329; font-size: 14px; font-weight: 600; }
+                                    Text { text: "关联设备之间同步常用语库 (即将支持)"; color: #8a9099; font-size: 11px; }
+                                }
+                                Toggle { checked: false; }
+                            }
+                        }
+                        Text { text: "跨设备设置保存并重启应用后生效"; color: #8a9099; font-size: 11px; }
+                    }
 
-                        t5-touch := TouchArea { clicked => { root.active-tab = 5; } }
+                    // ===== Tab 6 关于与反馈 =====
+                    if root.active-tab == 6 : VerticalLayout {
+                        spacing: 16px;
+                        alignment: center;
+                        Rectangle {
+                            width: 64px; height: 64px; border-radius: 16px; background: #07C160;
+                            Text { text: "微"; color: white; font-size: 28px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                        }
+                        Text { text: "微信键盘 Linux (WeType Linux)"; color: #1f2329; font-size: 17px; font-weight: 700; horizontal-alignment: center; }
+                        Text { text: "版本 v0.2.0 · 纯 Rust 原生 · Fcitx5 + Rime 底座"; color: #07C160; font-size: 13px; font-weight: 600; horizontal-alignment: center; }
+                        Rectangle {
+                            border-radius: 12px; background: white; border-width: 1px; border-color: #00000012;
+                            height: 110px;
+                            VerticalLayout {
+                                padding-top: 14px; padding-bottom: 14px; padding-left: 16px; padding-right: 16px; spacing: 6px; alignment: center;
+                                Text { text: "• 端云混合语音输入 · 离线 Sherpa-ONNX 优先隐私"; color: #8a9099; font-size: 12px; horizontal-alignment: center; }
+                                Text { text: "• 局域网 P2P 剪贴板同步 (mDNS + AES-256-GCM)"; color: #8a9099; font-size: 12px; horizontal-alignment: center; }
+                                Text { text: "• 反馈与源码: github.com/ly5566lyui/-wetype-"; color: #07C160; font-size: 12px; horizontal-alignment: center; }
+                            }
+                        }
                     }
                 }
             }
 
-            // 右侧主体配置区
+            // 底部操作栏
             Rectangle {
-                background: #191b1f;
-
-                VerticalLayout {
-                    padding: 24px;
-
-                // 1. Tab 0: 常用与显示
-                if root.active-tab == 0 : VerticalLayout {
-                    spacing: 16px;
-
-                    Text {
-                        text: "常用与显示偏好";
-                        color: #ffffff;
-                        font-size: 18px;
-                        font-weight: 700;
-                    }
-
-                    Text {
-                        text: "管理微信键盘在桌面上的悬浮、待命与常驻表现。";
-                        color: #9ca3af;
-                        font-size: 12px;
-                    }
-
-                    // 卡片 1: 启动时静默待命
+                height: 48px;
+                background: white;
+                Rectangle { y: 0px; height: 1px; width: 100%; background: #0000000d; }
+                HorizontalLayout {
+                    padding-left: 24px; padding-right: 20px;
+                    alignment: space-between;
+                    Text { text: root.status-text; color: #07C160; font-size: 12px; vertical-alignment: center; }
                     Rectangle {
-                        height: 64px;
-                        border-radius: 12px;
-                        background: #22252c;
-                        border-width: 1px;
-                        border-color: #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 16px;
-                            padding-right: 16px;
-                            alignment: space-between;
-
-                            VerticalLayout {
-                                alignment: center;
-                                spacing: 2px;
-                                Text { text: "启动时后台静默待命"; color: #ffffff; font-size: 14px; font-weight: 600; }
-                                Text { text: "开机或启动后不弹出悬浮窗挡住视野，按下快捷键瞬间滑出唤醒"; color: #9ca3af; font-size: 11px; }
-                            }
-
-                            HorizontalLayout {
-                                alignment: center;
-                                Rectangle {
-                                    width: 44px;
-                                    height: 24px;
-                                    border-radius: 12px;
-                                    background: root.start-hidden ? #23c891 : #374151;
-
-                                    Rectangle {
-                                        width: 18px;
-                                        height: 18px;
-                                        border-radius: 9px;
-                                        background: #ffffff;
-                                        x: root.start-hidden ? 23px : 3px;
-                                        y: 3px;
-                                        animate x { duration: 150ms; }
-                                    }
-
-                                    TouchArea { clicked => { root.toggle-start-hidden(); } }
-                                }
-                            }
-                        }
+                        width: 96px; height: 32px; border-radius: 8px; background: #07C160;
+                        Text { text: "保存设置"; color: white; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                        TouchArea { clicked => { root.save-settings(); } }
                     }
-
-                    // 卡片 2: 上屏后自动隐藏
-                    Rectangle {
-                        height: 64px;
-                        border-radius: 12px;
-                        background: #22252c;
-                        border-width: 1px;
-                        border-color: #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 16px;
-                            padding-right: 16px;
-                            alignment: space-between;
-
-                            VerticalLayout {
-                                alignment: center;
-                                spacing: 2px;
-                                Text { text: "文字上屏后自动隐藏"; color: #ffffff; font-size: 14px; font-weight: 600; }
-                                Text { text: "语音或常用语完成输入后，胶囊在 1.5 秒后自动淡出隐藏，不扰视线"; color: #9ca3af; font-size: 11px; }
-                            }
-
-                            HorizontalLayout {
-                                alignment: center;
-                                Rectangle {
-                                    width: 44px;
-                                    height: 24px;
-                                    border-radius: 12px;
-                                    background: root.auto-hide ? #23c891 : #374151;
-
-                                    Rectangle {
-                                        width: 18px;
-                                        height: 18px;
-                                        border-radius: 9px;
-                                        background: #ffffff;
-                                        x: root.auto-hide ? 23px : 3px;
-                                        y: 3px;
-                                        animate x { duration: 150ms; }
-                                    }
-
-                                    TouchArea { clicked => { root.toggle-auto-hide(); } }
-                                }
-                            }
-                        }
-                    }
-
-                    // 卡片 3: 允许鼠标拖拽移动
-                    Rectangle {
-                        height: 64px;
-                        border-radius: 12px;
-                        background: #22252c;
-                        border-width: 1px;
-                        border-color: #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 16px;
-                            padding-right: 16px;
-                            alignment: space-between;
-
-                            VerticalLayout {
-                                alignment: center;
-                                spacing: 2px;
-                                Text { text: "允许鼠标自由拖拽悬浮窗"; color: #ffffff; font-size: 14px; font-weight: 600; }
-                                Text { text: "按住药丸顶部即可平滑拖动至屏幕任意角落，自动记忆停留位置"; color: #9ca3af; font-size: 11px; }
-                            }
-
-                            HorizontalLayout {
-                                alignment: center;
-                                Rectangle {
-                                    width: 44px;
-                                    height: 24px;
-                                    border-radius: 12px;
-                                    background: root.allow-drag ? #23c891 : #374151;
-
-                                    Rectangle {
-                                        width: 18px;
-                                        height: 18px;
-                                        border-radius: 9px;
-                                        background: #ffffff;
-                                        x: root.allow-drag ? 23px : 3px;
-                                        y: 3px;
-                                        animate x { duration: 150ms; }
-                                    }
-
-                                    TouchArea { clicked => { root.toggle-allow-drag(); } }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 2. Tab 1: 快捷键设置
-                if root.active-tab == 1 : VerticalLayout {
-                    spacing: 16px;
-
-                    Text {
-                        text: "全局快捷键配置";
-                        color: #ffffff;
-                        font-size: 18px;
-                        font-weight: 700;
-                    }
-
-                    Text {
-                        text: "摆脱 Linux 系统键冲突，按您的键盘习惯随心定制。";
-                        color: #9ca3af;
-                        font-size: 12px;
-                    }
-
-                    // 选项 1: Ctrl + Alt + V (推荐)
-                    Rectangle {
-                        height: 58px;
-                        border-radius: 12px;
-                        background: root.voice-shortcut == "Ctrl+Alt+V" ? #23c89115 : #22252c;
-                        border-width: 1.5px;
-                        border-color: root.voice-shortcut == "Ctrl+Alt+V" ? #23c891 : #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 16px;
-                            padding-right: 16px;
-                            alignment: space-between;
-
-                            VerticalLayout {
-                                alignment: center;
-                                Text { text: "Ctrl + Alt + V (推荐组合)"; color: #ffffff; font-size: 14px; font-weight: 600; }
-                                Text { text: "避免与 GNOME Win 键冲突，双手按键极稳，不干扰任何系统功能"; color: #9ca3af; font-size: 11px; }
-                            }
-
-                            HorizontalLayout {
-                                alignment: center;
-                                Rectangle {
-                                    width: 20px;
-                                    height: 20px;
-                                    border-radius: 10px;
-                                    border-width: 2px;
-                                    border-color: root.voice-shortcut == "Ctrl+Alt+V" ? #23c891 : #6b7280;
-
-                                    if root.voice-shortcut == "Ctrl+Alt+V" : Rectangle {
-                                        width: 10px;
-                                        height: 10px;
-                                        border-radius: 5px;
-                                        background: #23c891;
-                                        x: 3px;
-                                        y: 3px;
-                                    }
-                                }
-                            }
-                        }
-
-                        TouchArea { clicked => { root.set-shortcut("Ctrl+Alt+V"); } }
-                    }
-
-                    // 选项 2: Alt + Space
-                    Rectangle {
-                        height: 58px;
-                        border-radius: 12px;
-                        background: root.voice-shortcut == "Alt+Space" ? #23c89115 : #22252c;
-                        border-width: 1.5px;
-                        border-color: root.voice-shortcut == "Alt+Space" ? #23c891 : #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 16px;
-                            padding-right: 16px;
-                            alignment: space-between;
-
-                            VerticalLayout {
-                                alignment: center;
-                                Text { text: "Alt + 空格 (极速触发)"; color: #ffffff; font-size: 14px; font-weight: 600; }
-                                Text { text: "单拇指一键轻触即可唤出语音倾听，大模型智能转写"; color: #9ca3af; font-size: 11px; }
-                            }
-
-                            HorizontalLayout {
-                                alignment: center;
-                                Rectangle {
-                                    width: 20px;
-                                    height: 20px;
-                                    border-radius: 10px;
-                                    border-width: 2px;
-                                    border-color: root.voice-shortcut == "Alt+Space" ? #23c891 : #6b7280;
-
-                                    if root.voice-shortcut == "Alt+Space" : Rectangle {
-                                        width: 10px;
-                                        height: 10px;
-                                        border-radius: 5px;
-                                        background: #23c891;
-                                        x: 3px;
-                                        y: 3px;
-                                    }
-                                }
-                            }
-                        }
-
-                        TouchArea { clicked => { root.set-shortcut("Alt+Space"); } }
-                    }
-
-                    // 选项 3: Super + V
-                    Rectangle {
-                        height: 58px;
-                        border-radius: 12px;
-                        background: root.voice-shortcut == "Super+V" ? #23c89115 : #22252c;
-                        border-width: 1.5px;
-                        border-color: root.voice-shortcut == "Super+V" ? #23c891 : #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 16px;
-                            padding-right: 16px;
-                            alignment: space-between;
-
-                            VerticalLayout {
-                                alignment: center;
-                                Text { text: "Win + V (Super + V 经典组合)"; color: #ffffff; font-size: 14px; font-weight: 600; }
-                                Text { text: "适用于已禁用 GNOME 概览快捷键的轻量桌面 (XFCE / i3 / KDE)"; color: #9ca3af; font-size: 11px; }
-                            }
-
-                            HorizontalLayout {
-                                alignment: center;
-                                Rectangle {
-                                    width: 20px;
-                                    height: 20px;
-                                    border-radius: 10px;
-                                    border-width: 2px;
-                                    border-color: root.voice-shortcut == "Super+V" ? #23c891 : #6b7280;
-
-                                    if root.voice-shortcut == "Super+V" : Rectangle {
-                                        width: 10px;
-                                        height: 10px;
-                                        border-radius: 5px;
-                                        background: #23c891;
-                                        x: 3px;
-                                        y: 3px;
-                                    }
-                                }
-                            }
-                        }
-
-                        TouchArea { clicked => { root.set-shortcut("Super+V"); } }
-                    }
-                }
-
-                // 3. Tab 2: 语音与识别
-                if root.active-tab == 2 : VerticalLayout {
-                    spacing: 16px;
-
-                    Text {
-                        text: "端侧离线语音引擎";
-                        color: #ffffff;
-                        font-size: 18px;
-                        font-weight: 700;
-                    }
-
-                    Text {
-                        text: "内置 Sherpa-ONNX 离线 Paraformer 语音大模型，全程零网络、高隐私。";
-                        color: #9ca3af;
-                        font-size: 12px;
-                    }
-
-                    // 语种选择
-                    Rectangle {
-                        height: 60px;
-                        border-radius: 12px;
-                        background: #22252c;
-                        border-width: 1px;
-                        border-color: #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 16px;
-                            padding-right: 16px;
-                            alignment: space-between;
-
-                            Text { text: "输入语种偏好"; color: #ffffff; font-size: 14px; font-weight: 600; vertical-alignment: center; }
-
-                            HorizontalLayout {
-                                spacing: 8px;
-                                alignment: center;
-
-                                Rectangle {
-                                    width: 60px; height: 30px; border-radius: 8px;
-                                    background: root.asr-lang == 0 ? #23c891 : #2e323b;
-                                    Text { text: "普通话"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                                    TouchArea { clicked => { root.set-lang(0); } }
-                                }
-
-                                Rectangle {
-                                    width: 60px; height: 30px; border-radius: 8px;
-                                    background: root.asr-lang == 1 ? #23c891 : #2e323b;
-                                    Text { text: "英语"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                                    TouchArea { clicked => { root.set-lang(1); } }
-                                }
-
-                                Rectangle {
-                                    width: 60px; height: 30px; border-radius: 8px;
-                                    background: root.asr-lang == 2 ? #23c891 : #2e323b;
-                                    Text { text: "粤语"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                                    TouchArea { clicked => { root.set-lang(2); } }
-                                }
-                            }
-                        }
-                    }
-
-                    // 自动句读标点
-                    Rectangle {
-                        height: 60px;
-                        border-radius: 12px;
-                        background: #22252c;
-                        border-width: 1px;
-                        border-color: #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 16px;
-                            padding-right: 16px;
-                            alignment: space-between;
-
-                            VerticalLayout {
-                                alignment: center;
-                                Text { text: "智能断句与标点符号"; color: #ffffff; font-size: 14px; font-weight: 600; }
-                                Text { text: "根据自然停顿和语气智能插入逗号、句号与问号"; color: #9ca3af; font-size: 11px; }
-                            }
-
-                            HorizontalLayout {
-                                alignment: center;
-                                Rectangle {
-                                    width: 44px; height: 24px; border-radius: 12px;
-                                    background: root.auto-punctuation ? #23c891 : #374151;
-
-                                    Rectangle {
-                                        width: 18px; height: 18px; border-radius: 9px;
-                                        background: #ffffff;
-                                        x: root.auto-punctuation ? 23px : 3px; y: 3px;
-                                        animate x { duration: 150ms; }
-                                    }
-
-                                    TouchArea { clicked => { root.auto-punctuation = !root.auto-punctuation; } }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 4. Tab 3: 外观与主题
-                if root.active-tab == 3 : VerticalLayout {
-                    spacing: 16px;
-
-                    Text {
-                        text: "外观主题与皮肤";
-                        color: #ffffff;
-                        font-size: 18px;
-                        font-weight: 700;
-                    }
-
-                    Text {
-                        text: "100% 还原官方微信输入法色调设计，支持深浅双模。";
-                        color: #9ca3af;
-                        font-size: 12px;
-                    }
-
-                    // 主题模式选择
-                    Rectangle {
-                        height: 60px;
-                        border-radius: 12px;
-                        background: #22252c;
-                        border-width: 1px;
-                        border-color: #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 16px;
-                            padding-right: 16px;
-                            alignment: space-between;
-
-                            Text { text: "色彩模式"; color: #ffffff; font-size: 14px; font-weight: 600; vertical-alignment: center; }
-
-                            HorizontalLayout {
-                                spacing: 8px;
-                                alignment: center;
-
-                                Rectangle {
-                                    width: 80px; height: 32px; border-radius: 8px;
-                                    background: root.theme-mode == 0 ? #23c891 : #2e323b;
-                                    Text { text: "深色沉浸"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                                    TouchArea { clicked => { root.set-theme(0); } }
-                                }
-
-                                Rectangle {
-                                    width: 80px; height: 32px; border-radius: 8px;
-                                    background: root.theme-mode == 1 ? #23c891 : #2e323b;
-                                    Text { text: "极简纯白"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                                    TouchArea { clicked => { root.set-theme(1); } }
-                                }
-                            }
-                        }
-                    }
-
-                    // 候选词个数
-                    Rectangle {
-                        height: 60px;
-                        border-radius: 12px;
-                        background: #22252c;
-                        border-width: 1px;
-                        border-color: #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 16px;
-                            padding-right: 16px;
-                            alignment: space-between;
-
-                            Text { text: "Fcitx5 候选词展示数量"; color: #ffffff; font-size: 14px; font-weight: 600; vertical-alignment: center; }
-
-                            HorizontalLayout {
-                                spacing: 8px;
-                                alignment: center;
-
-                                Rectangle {
-                                    width: 50px; height: 30px; border-radius: 8px;
-                                    background: root.candidate-count == 5 ? #23c891 : #2e323b;
-                                    Text { text: "5 个"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                                    TouchArea { clicked => { root.candidate-count = 5; } }
-                                }
-
-                                Rectangle {
-                                    width: 50px; height: 30px; border-radius: 8px;
-                                    background: root.candidate-count == 7 ? #23c891 : #2e323b;
-                                    Text { text: "7 个"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                                    TouchArea { clicked => { root.candidate-count = 7; } }
-                                }
-
-                                Rectangle {
-                                    width: 50px; height: 30px; border-radius: 8px;
-                                    background: root.candidate-count == 9 ? #23c891 : #2e323b;
-                                    Text { text: "9 个"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                                    TouchArea { clicked => { root.candidate-count = 9; } }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 5. Tab 4: 常用短语管理
-                if root.active-tab == 4 : VerticalLayout {
-                    spacing: 12px;
-
-                    Text {
-                        text: "常用短语库管理";
-                        color: #ffffff;
-                        font-size: 18px;
-                        font-weight: 700;
-                    }
-
-                    Text {
-                        text: "配置后可在悬浮胶囊 Tab 0 与右键菜单中一键上屏。";
-                        color: #9ca3af;
-                        font-size: 12px;
-                    }
-
-                    for phrase[idx] in root.phrase-list : Rectangle {
-                        height: 38px;
-                        border-radius: 8px;
-                        background: #22252c;
-                        border-width: 1px;
-                        border-color: #ffffff0a;
-
-                        HorizontalLayout {
-                            padding-left: 12px;
-                            padding-right: 12px;
-                            alignment: space-between;
-
-                            Text {
-                                text: (idx + 1) + ". " + phrase;
-                                color: #d1d5db;
-                                font-size: 13px;
-                                vertical-alignment: center;
-                            }
-
-                            Text {
-                                text: "常用短语";
-                                color: #6b7280;
-                                font-size: 11px;
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
-                }
-
-                // 6. Tab 5: 关于微信键盘
-                if root.active-tab == 5 : VerticalLayout {
-                    spacing: 16px;
-                    alignment: center;
-
-                    Image {
-                        source: @image-url("assets/logo.png");
-                        width: 64px;
-                        height: 64px;
-                        horizontal-alignment: center;
-                    }
-
-                    Text {
-                        text: "微信键盘 Linux (WeType Linux)";
-                        color: #ffffff;
-                        font-size: 18px;
-                        font-weight: 700;
-                        horizontal-alignment: center;
-                    }
-
-                    Text {
-                        text: "版本 v0.2.0 · 纯 Rust 原生高性能架构";
-                        color: #23c891;
-                        font-size: 13px;
-                        font-weight: 600;
-                        horizontal-alignment: center;
-                    }
-
-                    Rectangle {
-                        width: 380px;
-                        height: 90px;
-                        border-radius: 12px;
-                        background: #22252c;
-                        border-width: 1px;
-                        border-color: #ffffff0a;
-
-                        VerticalLayout {
-                            alignment: center;
-                            spacing: 6px;
-                            Text { text: "• 深度融合 Fcitx5 微信绿主题候选词"; color: #9ca3af; font-size: 12px; horizontal-alignment: center; }
-                            Text { text: "• 内置 Sherpa-ONNX 离线端侧语音大模型"; color: #9ca3af; font-size: 12px; horizontal-alignment: center; }
-                            Text { text: "• 零 Python 依赖 · 内存仅 ~20MB · 极低延迟"; color: #9ca3af; font-size: 12px; horizontal-alignment: center; }
-                        }
-                    }
-                }
-            }
-            }
-
-            // 底部保存状态栏
-            Rectangle {
-                height: 34px;
-                background: #202227;
-
-                Rectangle {
-                    y: 0px;
-                    height: 1px;
-                    width: 100%;
-                    background: #ffffff12;
-                }
-
-                Text {
-                    x: 20px;
-                    text: root.status-text;
-                    color: #23c891;
-                    font-size: 12px;
-                    vertical-alignment: center;
                 }
             }
         }
     }
 }
-

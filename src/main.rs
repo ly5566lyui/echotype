@@ -19,7 +19,7 @@ use clap::Parser;
 use cli::{Cli, Commands};
 use config::AppConfig;
 use fcitx::FcitxClient;
-use hotkey::{HotkeyAction, ShortcutSpec};
+use hotkey::{HotkeyAction, HotkeyEvent, ShortcutSpec};
 use std::sync::{Arc, Mutex};
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
@@ -242,63 +242,78 @@ fn register_daemon_hotkeys(config: &AppConfig) -> Option<hotkey::HotkeyHandle> {
         HotkeyAction::Voice,
     )];
 
-    let dispatch: Arc<dyn Fn(HotkeyAction) + Send + Sync> = {
+    let push_to_talk = config.general.push_to_talk;
+    let dispatch: Arc<dyn Fn(HotkeyEvent) + Send + Sync> = {
         let engine = Arc::clone(&engine);
         let recorder = Arc::clone(&recorder);
         let rt = rt.clone();
-        Arc::new(move |action| match action {
-            HotkeyAction::Voice => {
-                let mut guard = match recorder.lock() {
-                    Ok(g) => g,
-                    Err(_) => return,
-                };
-                match guard.take() {
-                    None => {
-                        // 空闲 -> 开始录音
-                        let rec = AudioRecorder::new();
-                        match rec.start() {
-                            Ok(()) => {
-                                info!("Voice hotkey: recording started...");
-                                *guard = Some(rec);
+        Arc::new(move |event: HotkeyEvent| {
+            if event.action != HotkeyAction::Voice {
+                return;
+            }
+            let recording = recorder.lock().map(|g| g.is_some()).unwrap_or(false);
+            // 事件决策 (is_press, recording, 按住说话):
+            //  - 空闲时按下                -> 开始录音 (两种模式一致)
+            //  - 录音中再按 (切换模式)     -> 停止并识别
+            //  - 录音中松开 (按住说话模式) -> 停止并识别
+            let stop_now = match (event.is_press, recording, push_to_talk) {
+                (true, true, false) => true,
+                (false, true, true) => true,
+                _ => false,
+            };
+            if !stop_now && (recording || !event.is_press) {
+                return; // 无事发生: 按住模式下录音中再次按下 / 松开但本就空闲
+            }
 
-                                // 录音时长保护: 超过上限自动停止并识别，避免忘记按停止键
-                                let recorder_wd = Arc::clone(&recorder);
-                                let engine_wd = Arc::clone(&engine);
-                                let rt_wd = rt.clone();
-                                rt_wd.spawn(async move {
-                                    tokio::time::sleep(std::time::Duration::from_secs(
-                                        MAX_RECORD_SECS,
-                                    ))
-                                    .await;
-                                    let rec =
-                                        match recorder_wd.lock().ok().and_then(|mut g| g.take()) {
-                                            Some(r) => r,
-                                            None => return, // 已手动停止
-                                        };
-                                    info!(
-                                        "Max recording duration ({}s) reached, auto-stopping...",
-                                        MAX_RECORD_SECS
-                                    );
-                                    let audio = rec.stop();
-                                    recognize_and_commit(engine_wd, audio).await;
-                                });
-                            }
-                            Err(e) => error!("Failed to start recording: {:#}", e),
+            let mut guard = match recorder.lock() {
+                Ok(g) => g,
+                Err(_) => return,
+            };
+            match guard.take() {
+                None => {
+                    // 空闲 -> 开始录音
+                    let rec = AudioRecorder::new();
+                    match rec.start() {
+                        Ok(()) => {
+                            info!("Voice hotkey: recording started...");
+                            *guard = Some(rec);
+
+                            // 录音时长保护: 超过上限自动停止并识别，避免忘记按停止键
+                            let recorder_wd = Arc::clone(&recorder);
+                            let engine_wd = Arc::clone(&engine);
+                            let rt_wd = rt.clone();
+                            rt_wd.spawn(async move {
+                                tokio::time::sleep(std::time::Duration::from_secs(
+                                    MAX_RECORD_SECS,
+                                ))
+                                .await;
+                                let rec =
+                                    match recorder_wd.lock().ok().and_then(|mut g| g.take()) {
+                                        Some(r) => r,
+                                        None => return, // 已手动停止
+                                    };
+                                info!(
+                                    "Max recording duration ({}s) reached, auto-stopping...",
+                                    MAX_RECORD_SECS
+                                );
+                                let audio = rec.stop();
+                                recognize_and_commit(engine_wd, audio).await;
+                            });
                         }
-                    }
-                    Some(rec) => {
-                        // 录音中 -> 停止并识别上屏
-                        drop(guard);
-                        info!("Voice hotkey: recording stopped, running ASR...");
-                        let audio = rec.stop();
-                        let engine = Arc::clone(&engine);
-                        rt.spawn(async move {
-                            recognize_and_commit(engine, audio).await;
-                        });
+                        Err(e) => error!("Failed to start recording: {:#}", e),
                     }
                 }
+                Some(rec) => {
+                    // 录音中 -> 停止并识别上屏
+                    drop(guard);
+                    info!("Voice hotkey: recording stopped, running ASR...");
+                    let audio = rec.stop();
+                    let engine = Arc::clone(&engine);
+                    rt.spawn(async move {
+                        recognize_and_commit(engine, audio).await;
+                    });
+                }
             }
-            HotkeyAction::Clipboard => {}
         })
     };
 

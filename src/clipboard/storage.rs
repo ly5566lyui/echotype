@@ -104,6 +104,16 @@ impl ClipboardStorage {
         Ok(results)
     }
 
+    /// 删除一条常用语 (按内容匹配，删除最早的一条)
+    pub fn delete_quick_phrase(&self, phrase: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "DELETE FROM quick_phrases WHERE id = (SELECT id FROM quick_phrases WHERE phrase = ?1 LIMIT 1)",
+            params![phrase],
+        )?;
+        Ok(())
+    }
+
     /// 用设置窗口编辑后的列表整体覆盖常用短语库
     pub fn replace_quick_phrases(&self, phrases: &[String]) -> Result<()> {
         let conn = self.conn.lock().unwrap();
