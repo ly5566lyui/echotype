@@ -86,12 +86,17 @@ async fn run_portal(
     };
     anyhow::ensure!(code == 0, "CreateSession rejected by portal (code {})", code);
 
+    // 规范中 Response results 的 session_handle 是字符串 (s)，
+    // 部分实现也可能返回 ObjectPath (o) —— 两种类型都接受；
+    // 注意 CreateSession 的直接返回值是 request 路径，不能当会话句柄用
     let session_path = results
         .get("session_handle")
         .and_then(|v| match &**v {
+            Value::Str(s) => Some(s.to_string()),
             Value::ObjectPath(p) => Some(p.to_string()),
             _ => None,
         })
+        .filter(|p| p.contains("/session/"))
         .unwrap_or_else(|| session_ret.to_string());
     info!("Portal shortcuts session created: {}", session_path);
 
@@ -101,14 +106,15 @@ async fn run_portal(
         zbus::Proxy::new(&conn, PORTAL_DEST, req2_path.as_str(), REQUEST_IFACE).await?;
     let mut req2_stream = req2_proxy.receive_signal("Response").await?;
 
-    let mut binds: Vec<(String, HashMap<&str, Value>, HashMap<&str, Value>)> = Vec::new();
+    let mut binds: Vec<(String, HashMap<&str, Value>)> = Vec::new();
     for spec in &specs {
         let mut props: HashMap<&str, Value> = HashMap::new();
         props.insert("description", Value::from(spec.description.clone()));
         if let Some(trigger) = &spec.portal_trigger {
             props.insert("preferred_trigger", Value::from(trigger.clone()));
         }
-        binds.push((spec.id.clone(), props, HashMap::new()));
+        // XDG GlobalShortcuts 规范: shortcuts 为 a(sa{sv}) —— 每项仅 (id, 属性表)
+        binds.push((spec.id.clone(), props));
     }
 
     let session_obj = ObjectPath::try_from(session_path.as_str())

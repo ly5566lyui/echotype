@@ -13,6 +13,11 @@ impl ClipboardStorage {
         let conn = Connection::open(db_path.as_ref())
             .with_context(|| format!("Failed to open SQLite database at {:?}", db_path.as_ref()))?;
 
+        // 多进程并发访问 (GUI + daemon 同时运行) 需要 WAL 模式与写锁等待，
+        // 否则 SQLITE_BUSY 会导致历史入库静默失败
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
+
         // 初始化数据表
         conn.execute(
             "CREATE TABLE IF NOT EXISTS clipboard_history (

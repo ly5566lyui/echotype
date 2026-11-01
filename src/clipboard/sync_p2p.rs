@@ -243,7 +243,7 @@ async fn tcp_server(manager: Arc<P2pSyncManager>) -> Result<()> {
         let mgr = Arc::clone(&manager);
         let active_task = Arc::clone(&active);
         tokio::spawn(async move {
-            if let Err(e) = handle_incoming(mgr, &mut stream).await {
+            if let Err(e) = handle_incoming(mgr, &mut stream, peer).await {
                 debug!("Dropping P2P connection from {}: {:#}", peer, e);
             }
             active_task.fetch_sub(1, Ordering::SeqCst);
@@ -251,7 +251,11 @@ async fn tcp_server(manager: Arc<P2pSyncManager>) -> Result<()> {
     }
 }
 
-async fn handle_incoming(manager: Arc<P2pSyncManager>, stream: &mut TcpStream) -> Result<()> {
+async fn handle_incoming(
+    manager: Arc<P2pSyncManager>,
+    stream: &mut TcpStream,
+    peer: SocketAddr,
+) -> Result<()> {
     let mut len_buf = [0u8; 4];
     stream.read_exact(&mut len_buf).await?;
     let len = u32::from_be_bytes(len_buf) as usize;
@@ -262,20 +266,34 @@ async fn handle_incoming(manager: Arc<P2pSyncManager>, stream: &mut TcpStream) -
     let mut frame = vec![0u8; len];
     stream.read_exact(&mut frame).await?;
 
-    let plaintext = open_sealed(&manager.key, &frame)
-        .context("failed to decrypt P2P payload (peer pair_secret mismatch?)")?;
-    let msg: P2pClipboardMessage =
-        serde_json::from_slice(&plaintext).context("failed to parse P2P payload")?;
+    // 安全事件使用 warn 级，保证默认日志级别下可见 (拒绝原因/来源对排查至关重要)
+    let plaintext = match open_sealed(&manager.key, &frame) {
+        Ok(p) => p,
+        Err(e) => {
+            warn!("P2P rejected frame from {}: {:#}", peer, e);
+            bail!("decryption rejected");
+        }
+    };
+    let msg: P2pClipboardMessage = match serde_json::from_slice(&plaintext) {
+        Ok(m) => m,
+        Err(e) => {
+            warn!("P2P rejected malformed payload from {}: {}", peer, e);
+            bail!("payload rejected");
+        }
+    };
 
     // 重放保护: 拒绝时间戳偏离本机时钟过远的消息
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    anyhow::ensure!(
-        is_timestamp_fresh(msg.ts, now),
-        "stale or future message timestamp (replay rejected)"
-    );
+    if !is_timestamp_fresh(msg.ts, now) {
+        warn!(
+            "P2P rejected replay/stale timestamp from {} (ts={}, now={})",
+            peer, msg.ts, now
+        );
+        bail!("stale or future message timestamp (replay rejected)");
+    }
 
     if msg.content.is_empty() {
         return Ok(());
