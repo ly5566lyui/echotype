@@ -36,7 +36,7 @@
 | 常用语 / 剪贴板历史 | ✅ | SQLite 存储 + 敏感内容过滤 + 上限裁剪 |
 | 纯后台运行 | ✅ | 无悬浮窗，配置经 `config.toml` 管理 |
 | 局域网 P2P 剪贴板同步 | ✅ | mDNS 自动发现 + AES-256-GCM 端到端加密 |
-| Fcitx5 微信键盘候选框主题 | ✅ | `themes/wetype-clean` 一键部署 |
+| Fcitx5 候选框主题 (Nord 风) | ✅ | Midnight / Daylight 双主题 + 原创应用图标 |
 | 常用语弹窗选择器 / 边写边译 / AI 助理 | 🚧 | 规划中 |
 
 ---
@@ -125,11 +125,11 @@ wetype-linux/
 │   ├── clipboard/       # monitor(监听+敏感过滤) / storage(SQLite) / sync_p2p(mDNS+AES-GCM)
 │   ├── fcitx/           # Fcitx5 DBus 客户端 + Lua 桥接扩展自动部署
 │   ├── hotkey/          # 全局热键: X11 XGrabKey / Wayland Portal GlobalShortcuts
-│   └── ui/
 ├── docs/                # 架构文档与 Rime 配置指南 (docs/dev/ 为开发纪要)
+├── icons/               # 应用图标 (SVG, Nord 风)
 ├── scripts/             # install / download_models / integrate_fcitx5 部署脚本
 ├── systemd/             # 用户级 systemd 服务
-├── themes/              # Fcitx5 候选框微信键盘主题
+├── themes/              # Fcitx5 候选框主题 (Midnight / Daylight, Nord 风)
 └── .github/             # CI 工作流与 Issue 模板
 ```
 
@@ -171,3 +171,5 @@ cargo run -- -v daemon   # 调试模式运行守护进程
 - [rime-ice (雾凇拼音)](https://github.com/iDvel/rime-ice) - 长期维护的高质量简体中文词库
 - [Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx) - 高性能、跨平台的端侧语音识别推理引擎
 - [zbus](https://github.com/dbus2/zbus) - 纯 Rust 高性能 DBus 库
+- [Lucide](https://lucide.dev) - 应用图标基于其键盘与声波图形重绘 (ISC)
+- [Nord](https://www.nordtheme.com) - 候选框主题配色灵感来源

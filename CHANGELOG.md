@@ -2,6 +2,14 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 格式。
 
+## [0.3.0] - 2026-11-01
+
+### Changed (视觉重制 · 去微信化)
+- **候选框主题整体换新**: 采用 Nord 配色体系新增 `WeType Midnight` (暗色) / `WeType Daylight` (亮色) 双主题，替代原微信绿主题 (旧主题保留于 git 历史)
+- **原创应用图标**: 键盘 + 声波双意象 SVG (Nord 配色)，图形参考 [Lucide](https://lucide.dev) (ISC) 重绘；集成脚本自动安装至 hicolor 图标目录
+- 品牌文案全面去微信化：集成脚本、桌面入口 (`WeType 输入法助手`)、README；免责声明中的商标说明保持不变
+- 移除悬浮胶囊后同步清理集成脚本中的药丸快捷键绑定 (gui 子命令已不存在)
+
 ## [0.2.0] - 2026-10-27
 
 > ✅ **构建验证**: 已在 Debian 13 (rustc 1.99.1, fcitx5 5.1.12) 虚拟机实测 —— `cargo build --release` 产出 18.6MB 单二进制，`cargo check` 零警告，**19/19 单元测试全部通过**；CLI (`phrases`/`daemon`/`test-fcitx`) 运行时验证通过，Fcitx5 DBus 探活与 Lua 桥自动部署正常。无头会话无法触达的部分 (GUI/热键/语音/双机 P2P) 需桌面会话验证。

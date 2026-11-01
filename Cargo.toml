@@ -1,6 +1,6 @@
 [package]
 name = "wetype-linux"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["WeType-Linux Contributors"]
 description = "A modern input method enhancement daemon for Linux (Fcitx5), featuring voice-to-text, cross-device clipboard sync, and quick phrases."
