@@ -189,6 +189,7 @@ pub async fn commit_string_cached(text: &str) -> Result<()> {
 /// 将候选词数量 best-effort 写入 Fcitx5 中文拼音引擎配置
 /// (`~/.config/fcitx5/conf/pinyin.conf` 的 `PageSize`)。
 /// 若该配置不存在则创建；需重启 Fcitx5 后生效。失败不影响主流程。
+#[allow(dead_code)] // 设置中心已移除，保留供 config.toml 用户与后续 UI 使用
 pub fn apply_candidate_count(count: i32) -> Result<()> {
     apply_conf_key(
         &PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string()))
@@ -201,6 +202,7 @@ pub fn apply_candidate_count(count: i32) -> Result<()> {
 
 /// 将候选词字号写入 Fcitx5 经典界面配置 (`~/.config/fcitx5/conf/classicui.conf`
 /// 的 `Font="Noto Sans CJK SC {size}"`)。需重启 Fcitx5 后生效。失败不影响主流程。
+#[allow(dead_code)] // 设置中心已移除，保留供 config.toml 用户与后续 UI 使用
 pub fn apply_candidate_font_size(size: i32) -> Result<()> {
     apply_conf_key(
         &PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string()))

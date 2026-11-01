@@ -78,9 +78,14 @@ pub fn register(
     dispatch: Arc<dyn Fn(HotkeyEvent) + Send + Sync>,
     rt: Handle,
 ) -> HotkeyHandle {
-    let is_wayland = std::env::var("WAYLAND_DISPLAY")
+    // Wayland 检测需尊重 pill 侧的强制 X11 决策 (XWayland 下拖拽/置顶依赖 X11 后端)
+    let forced_x11 = std::env::var("WINIT_UNIX_BACKEND")
+        .map(|v| v.eq_ignore_ascii_case("x11"))
+        .unwrap_or(false);
+    let has_wayland = std::env::var("WAYLAND_DISPLAY")
         .map(|v| !v.trim().is_empty())
         .unwrap_or(false);
+    let is_wayland = has_wayland && !forced_x11;
 
     if is_wayland {
         info!("Wayland session detected, registering global shortcuts via XDG Portal...");

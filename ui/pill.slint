@@ -1,5 +1,3 @@
-import { SettingsWindow } from "settings.slint";
-export { SettingsWindow }
 
 export component FloatingPill inherits Window {
     title: "WeType Linux";
@@ -42,7 +40,7 @@ export component FloatingPill inherits Window {
     callback click-tool(int);
     callback close-window();
     callback drag-move(length, length);
-    callback open-settings();
+    callback drag-reset();
     callback toggle-traditional();
     callback minimize-to-tray();
     callback quit-app();
@@ -76,6 +74,9 @@ export component FloatingPill inherits Window {
                     root.menu-x = self.mouse-x;
                     root.menu-y = self.mouse-y;
                     root.show-context-menu = true;
+                }
+                if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
+                    root.drag-reset();
                 }
             }
         }
@@ -819,20 +820,7 @@ export component FloatingPill inherits Window {
                 padding: 6px;
                 spacing: 2px;
 
-                // 1. 设置中心
-                Rectangle {
-                    height: 30px;
-                    border-radius: 8px;
-                    background: mi1.has-hover ? #2e323b : transparent;
-                    HorizontalLayout {
-                        padding-left: 10px; spacing: 8px; alignment: center;
-                        Text { text: "⚙️"; font-size: 13px; vertical-alignment: center; }
-                        Text { text: "设置中心..."; color: mi1.has-hover ? #23c891 : #ffffff; font-size: 12px; font-weight: 600; vertical-alignment: center; }
-                    }
-                    mi1 := TouchArea { clicked => { root.open-settings(); root.show-context-menu = false; } }
-                }
-
-                // 2. 常用短语
+                // 1. 常用短语
                 Rectangle {
                     height: 30px;
                     border-radius: 8px;
