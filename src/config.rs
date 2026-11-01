@@ -31,6 +31,10 @@ pub struct GeneralConfig {
     pub candidate_font_size: i32,
     /// 按住说话 (push-to-talk): 热键按下开始录音、松开结束 (关闭则为开始/停止切换)
     pub push_to_talk: bool,
+    /// 说话结束后检测到持续静音时自动结束录音并识别
+    pub silence_auto_stop: bool,
+    /// 静音自动结束的时长阈值 (毫秒)
+    pub silence_timeout_ms: u32,
 }
 
 impl Default for GeneralConfig {
@@ -46,6 +50,8 @@ impl Default for GeneralConfig {
             candidate_count: 5,
             candidate_font_size: 14,
             push_to_talk: false,
+            silence_auto_stop: true,
+            silence_timeout_ms: 1800,
         }
     }
 }

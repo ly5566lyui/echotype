@@ -3,7 +3,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::io::Write;
 use std::path::Path;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU32, Ordering},
     Arc, Mutex,
 };
 use tracing::{debug, info};
@@ -52,11 +52,23 @@ pub fn trim_silence(pcm: &[i16]) -> Vec<i16> {
     pcm[start..end].to_vec()
 }
 
+/// 静音自动结束: 语音能量检测使用与 trim_silence 一致的阈值 (f32 域)
+const SPEECH_RMS_F32: f32 = (SILENCE_THRESHOLD / 32768.0) as f32;
+/// 判定"已开始说话"所需的能量帧数 (每帧约为一个回调块, 累计约 60ms)
+const SPEECH_FRAMES_REQUIRED: u32 = 3;
+
+#[derive(Clone)]
 pub struct AudioRecorder {
     is_recording: Arc<AtomicBool>,
     /// 录音线程完成重采样写入的标志 (stop 依据它等待，消除固定 sleep 竞态)
     finished: Arc<AtomicBool>,
     buffer_16k_mono: Arc<Mutex<Vec<i16>>>,
+    /// 累计检测到的有声能量块数 (达到阈值即认为"已开始说话")
+    loud_blocks: Arc<AtomicU32>,
+    /// 是否已开始说话
+    speech_detected: Arc<AtomicBool>,
+    /// 说话后的持续静音时长 (毫秒)
+    silence_ms: Arc<AtomicU32>,
 }
 
 impl AudioRecorder {
@@ -65,6 +77,29 @@ impl AudioRecorder {
             is_recording: Arc::new(AtomicBool::new(false)),
             finished: Arc::new(AtomicBool::new(true)),
             buffer_16k_mono: Arc::new(Mutex::new(Vec::new())),
+            loud_blocks: Arc::new(AtomicU32::new(0)),
+            speech_detected: Arc::new(AtomicBool::new(false)),
+            silence_ms: Arc::new(AtomicU32::new(0)),
+        }
+    }
+
+    /// 静音自动结束判定: 已开始说话且随后持续静音达到 timeout_ms
+    pub fn silence_auto_stop_reached(&self, timeout_ms: u32) -> bool {
+        self.speech_detected.load(Ordering::SeqCst)
+            && self.silence_ms.load(Ordering::SeqCst) >= timeout_ms
+    }
+
+    /// 在录音回调末尾更新能量状态 (每回调块的时长约 chunk_ms 毫秒)
+    fn note_energy(&self, rms: f32, chunk_ms: u32) {
+        if rms > SPEECH_RMS_F32 {
+            self.loud_blocks.fetch_add(1, Ordering::Relaxed);
+            self.speech_detected.store(
+                self.loud_blocks.load(Ordering::Relaxed) >= SPEECH_FRAMES_REQUIRED,
+                Ordering::SeqCst,
+            );
+            self.silence_ms.store(0, Ordering::SeqCst);
+        } else if self.speech_detected.load(Ordering::SeqCst) {
+            self.silence_ms.fetch_add(chunk_ms, Ordering::Relaxed);
         }
     }
 
@@ -73,6 +108,9 @@ impl AudioRecorder {
         self.buffer_16k_mono.lock().unwrap().clear();
         self.is_recording.store(true, Ordering::SeqCst);
         self.finished.store(false, Ordering::SeqCst);
+        self.loud_blocks.store(0, Ordering::SeqCst);
+        self.speech_detected.store(false, Ordering::SeqCst);
+        self.silence_ms.store(0, Ordering::SeqCst);
 
         let host = cpal::default_host();
         let device = host
@@ -98,6 +136,7 @@ impl AudioRecorder {
         let is_recording = self.is_recording.clone();
         let buffer_16k_mono = self.buffer_16k_mono.clone();
         let finished_cb = self.finished.clone();
+        let rec_cb = Arc::new(self.clone());
 
         std::thread::spawn(move || {
             let err_fn = |err| tracing::error!("An error occurred on audio stream: {}", err);
@@ -113,11 +152,20 @@ impl AudioRecorder {
                     move |data: &[i16], _: &_| {
                         if is_rec_cb.load(Ordering::SeqCst) {
                             let mut mono = raw_mono_cb.lock().unwrap();
+                            let prev_len = mono.len();
                             for frame in data.chunks(in_channels) {
                                 let sum: f32 =
                                     frame.iter().map(|&s| s as f32 / 32768.0).sum();
                                 mono.push(sum / frame.len() as f32);
                             }
+                            // 实时能量检测 (静音自动结束用)
+                            let new = &mono[prev_len..];
+                            let n = new.len().max(1);
+                            let rms = (new.iter().map(|s| s * s).sum::<f32>() / n as f32).sqrt();
+                            let chunk_ms = (data.len() as u32 * 1000
+                                / (in_channels as u32 * in_rate.max(1) as u32))
+                            .max(1);
+                            rec_cb.note_energy(rms, chunk_ms);
                         }
                     },
                     err_fn,
@@ -128,10 +176,19 @@ impl AudioRecorder {
                     move |data: &[f32], _: &_| {
                         if is_rec_cb.load(Ordering::SeqCst) {
                             let mut mono = raw_mono_cb.lock().unwrap();
+                            let prev_len = mono.len();
                             for frame in data.chunks(in_channels) {
                                 let sum: f32 = frame.iter().copied().sum();
                                 mono.push(sum / frame.len() as f32);
                             }
+                            // 实时能量检测 (静音自动结束用)
+                            let new = &mono[prev_len..];
+                            let n = new.len().max(1);
+                            let rms = (new.iter().map(|s| s * s).sum::<f32>() / n as f32).sqrt();
+                            let chunk_ms = (data.len() as u32 * 1000
+                                / (in_channels as u32 * in_rate.max(1) as u32))
+                            .max(1);
+                            rec_cb.note_energy(rms, chunk_ms);
                         }
                     },
                     err_fn,
@@ -300,5 +357,44 @@ mod tests {
 
         let trimmed = trim_silence(&pcm);
         assert!(trimmed.len() > 16000, "speech body must survive");
+    }
+
+    #[test]
+    fn silence_auto_stop_state_machine() {
+        // 未说话: 无论静音多久都不触发
+        let rec = AudioRecorder::new();
+        for _ in 0..200 {
+            rec.note_energy(0.0, 20);
+        }
+        assert!(!rec.silence_auto_stop_reached(1800));
+
+        // 说话后: 静音累计达到阈值才触发
+        let rec = AudioRecorder::new();
+        for _ in 0..5 {
+            rec.note_energy(0.05, 20); // 5 个响块 -> 判定已开始说话
+        }
+        assert!(!rec.silence_auto_stop_reached(1800)); // 刚说完话，还没有静音
+        for _ in 0..89 {
+            rec.note_energy(0.0, 20); // 累计 1780ms 静音，尚未达标
+        }
+        assert!(!rec.silence_auto_stop_reached(1800));
+        rec.note_energy(0.0, 20); // 累计 1800ms，达标
+        assert!(rec.silence_auto_stop_reached(1800));
+
+        // 说话会重置静音计时
+        rec.note_energy(0.05, 20);
+        assert!(!rec.silence_auto_stop_reached(1800));
+    }
+
+    #[test]
+    fn auto_stop_requires_sustained_speech() {
+        // 单个噪声尖峰不足以判定"已开始说话" (要求至少 3 个响块)
+        let rec = AudioRecorder::new();
+        rec.note_energy(0.5, 20);
+        rec.note_energy(0.0, 20);
+        for _ in 0..200 {
+            rec.note_energy(0.0, 20);
+        }
+        assert!(!rec.silence_auto_stop_reached(1800));
     }
 }

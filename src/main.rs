@@ -82,11 +82,23 @@ async fn main() -> Result<()> {
                 if let Some(secs) = duration {
                     info!("Recording from microphone for {} seconds...", secs);
                     recorder.start()?;
-                    tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
+                    wait_record_window(
+                        &recorder,
+                        secs,
+                        config.general.silence_auto_stop,
+                        config.general.silence_timeout_ms,
+                    )
+                    .await;
                 } else if !std::io::stdin().is_terminal() {
                     info!("Non-terminal hotkey invocation detected, recording for 4 seconds...");
                     recorder.start()?;
-                    tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                    wait_record_window(
+                        &recorder,
+                        4,
+                        config.general.silence_auto_stop,
+                        config.general.silence_timeout_ms,
+                    )
+                    .await;
                 } else {
                     info!("Press Enter to START recording...");
                     let mut line = String::new();
@@ -252,6 +264,8 @@ fn register_daemon_hotkeys(
     ];
 
     let push_to_talk = config.general.push_to_talk;
+    let silence_auto_stop = config.general.silence_auto_stop;
+    let silence_timeout_ms = config.general.silence_timeout_ms;
     let dispatch: Arc<dyn Fn(HotkeyEvent) + Send + Sync> = {
         let engine = Arc::clone(&engine);
         let recorder = Arc::clone(&recorder);
@@ -317,26 +331,62 @@ fn register_daemon_hotkeys(
                             info!("Voice hotkey: recording started...");
                             *guard = Some(rec);
 
-                            // 录音时长保护: 超过上限自动停止并识别，避免忘记按停止键
+                            // 录音监督循环: 说话后的持续静音自动结束 + 60s 时长上限
                             let recorder_wd = Arc::clone(&recorder);
                             let engine_wd = Arc::clone(&engine);
                             let rt_wd = rt.clone();
                             rt_wd.spawn(async move {
-                                tokio::time::sleep(std::time::Duration::from_secs(
-                                    MAX_RECORD_SECS,
-                                ))
-                                .await;
-                                let rec =
-                                    match recorder_wd.lock().ok().and_then(|mut g| g.take()) {
-                                        Some(r) => r,
-                                        None => return, // 已手动停止
+                                let started = std::time::Instant::now();
+                                loop {
+                                    tokio::time::sleep(std::time::Duration::from_millis(
+                                        250,
+                                    ))
+                                    .await;
+                                    // 先判定再取出 (避免与手动停止争抢录音机)
+                                    let stop_reason = {
+                                        let g = match recorder_wd.lock() {
+                                            Ok(g) => g,
+                                            Err(_) => return,
+                                        };
+                                        match g.as_ref() {
+                                            None => return, // 已手动停止并识别
+                                            Some(rec) => {
+                                                if started.elapsed()
+                                                    >= std::time::Duration::from_secs(
+                                                        MAX_RECORD_SECS,
+                                                    )
+                                                {
+                                                    Some("max duration")
+                                                } else if silence_auto_stop
+                                                    && rec.silence_auto_stop_reached(
+                                                        silence_timeout_ms,
+                                                    )
+                                                {
+                                                    Some("silence")
+                                                } else {
+                                                    None
+                                                }
+                                            }
+                                        }
                                     };
-                                info!(
-                                    "Max recording duration ({}s) reached, auto-stopping...",
-                                    MAX_RECORD_SECS
-                                );
-                                let audio = rec.stop();
-                                recognize_and_commit(engine_wd, audio).await;
+                                    let Some(reason) = stop_reason else { continue };
+                                    info!(
+                                        "Recording auto-stopped ({}) after {:.1}s, running ASR...",
+                                        reason,
+                                        started.elapsed().as_secs_f32()
+                                    );
+                                    let rec = match recorder_wd
+                                        .lock()
+                                        .ok()
+                                        .and_then(|mut g| g.take())
+                                    {
+                                        Some(r) => r,
+                                        None => return, // 手动停止抢先
+                                    };
+                                    let audio = rec.stop();
+                                    recognize_and_commit(engine_wd, audio).await;
+                                    return;
+                                }
                             });
                         }
                         Err(e) => error!("Failed to start recording: {:#}", e),
@@ -364,9 +414,23 @@ fn register_daemon_hotkeys(
     Some(handle)
 }
 
+/// 录音等待窗口: 达到指定时长，或 (启用时) 说话后持续静音达到阈值即提前结束
+async fn wait_record_window(recorder: &AudioRecorder, secs: u64, auto_stop: bool, silence_ms: u32) {
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(secs);
+    loop {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        if tokio::time::Instant::now() >= deadline {
+            return;
+        }
+        if auto_stop && recorder.silence_auto_stop_reached(silence_ms) {
+            info!("Silence auto-stop triggered after speech.");
+            return;
+        }
+    }
+}
+
 /// 识别 PCM 并将结果上屏到 Fcitx5 焦点窗口 (手动停止与超时自动停止共用)
-async fn recognize_and_commit(engine: Arc<HybridAsrEngine>, audio: Vec<i16>) {
-    if audio.is_empty() {
+async fn recognize_and_commit(engine: Arc<HybridAsrEngine>, audio: Vec<i16>) {    if audio.is_empty() {
         warn!("Captured audio buffer is empty.");
         return;
     }
