@@ -20,9 +20,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "=4.5.20", features = ["derive"] }
 
-# UI Framework (Pure Rust Floating Capsule / Pill)
-slint = { version = "=1.13.0", default-features = false, features = ["compat-1-2", "renderer-femtovg", "backend-winit"] }
-
 # Configuration & JSON
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -52,9 +49,6 @@ sha2 = "0.10"
 
 # DBus signal streams (Portal GlobalShortcuts)
 futures-util = "0.3"
-
-[build-dependencies]
-slint-build = "=1.13.0"
 
 [profile.release]
 opt-level = 3

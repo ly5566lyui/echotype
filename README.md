@@ -32,12 +32,12 @@
 | Fcitx5 文字上屏 (Wayland / X11) | ✅ | DBus + Lua 桥接扩展自动部署，无需按键模拟 |
 | 语音输入 (端云混合) | ✅ | 云端 API 优先，断网自动降级本地 Sherpa-ONNX |
 | 静音裁剪 / 录音时长保护 | ✅ | 能量法 VAD-lite + 60 秒上限看门狗 |
-| 全局热键 | ✅ | X11: XGrabKey；Wayland: XDG Portal GlobalShortcuts |
+| 全局热键 | ✅ | 语音上屏 + 剪贴板重贴；X11: XGrabKey，Wayland: XDG Portal |
 | 常用语 / 剪贴板历史 | ✅ | SQLite 存储 + 敏感内容过滤 + 上限裁剪 |
-| 设置中心 | ✅ | 悬浮胶囊 + 设置持久化至 `config.toml` |
+| 纯后台运行 | ✅ | 无悬浮窗，配置经 `config.toml` 管理 |
 | 局域网 P2P 剪贴板同步 | ✅ | mDNS 自动发现 + AES-256-GCM 端到端加密 |
 | Fcitx5 微信键盘候选框主题 | ✅ | `themes/wetype-clean` 一键部署 |
-| 悬浮窗深浅主题切换 / 边写边译 / AI 助理 | 🚧 | 规划中 (设置项与入口已预留) |
+| 常用语弹窗选择器 / 边写边译 / AI 助理 | 🚧 | 规划中 |
 
 ---
 
@@ -118,15 +118,14 @@ cp config.example.toml ~/.config/wetype/config.toml
 ```text
 wetype-linux/
 ├── src/
-│   ├── main.rs          # 入口: gui / daemon / voice-input / phrases / test-fcitx 子命令
+│   ├── main.rs          # 入口: daemon (默认) / voice-input / phrases / test-fcitx 子命令
 │   ├── config.rs        # 配置加载与持久化 (TOML, 缺省字段向后兼容)
 │   ├── cli.rs           # clap 命令行定义
 │   ├── asr/             # 语音识别: recorder(录音+VAD) / cloud_api / local_sherpa / 混合调度
 │   ├── clipboard/       # monitor(监听+敏感过滤) / storage(SQLite) / sync_p2p(mDNS+AES-GCM)
 │   ├── fcitx/           # Fcitx5 DBus 客户端 + Lua 桥接扩展自动部署
 │   ├── hotkey/          # 全局热键: X11 XGrabKey / Wayland Portal GlobalShortcuts
-│   └── ui/              # Slint 悬浮胶囊与设置中心的回调接线
-├── ui/                  # Slint UI 定义 (pill / settings) 与图标资源
+│   └── ui/
 ├── docs/                # 架构文档与 Rime 配置指南 (docs/dev/ 为开发纪要)
 ├── scripts/             # install / download_models / integrate_fcitx5 部署脚本
 ├── systemd/             # 用户级 systemd 服务
@@ -139,7 +138,7 @@ wetype-linux/
 ```bash
 cargo check              # 静态检查
 cargo test               # 单元测试 (加解密 / 快捷键解析 / 静音裁剪 / 配置兼容等 19 例)
-cargo run -- gui         # 本地运行悬浮胶囊
+cargo run -- daemon      # 本地运行守护服务
 cargo run -- -v daemon   # 调试模式运行守护进程
 ```
 

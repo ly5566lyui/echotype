@@ -13,7 +13,7 @@ use tokio::runtime::Handle;
 use tracing::{info, warn};
 use zbus::zvariant::{ObjectPath, OwnedObjectPath, OwnedValue, Value};
 
-use super::{HotkeyEvent, HotkeyAction, ShortcutSpec};
+use super::{HotkeyEvent, ShortcutSpec};
 
 const PORTAL_DEST: &str = "org.freedesktop.portal.Desktop";
 const PORTAL_PATH: &str = "/org/freedesktop/portal/desktop";

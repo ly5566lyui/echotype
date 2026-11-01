@@ -2,7 +2,7 @@
 Name=微信键盘助手 (WeType)
 GenericName=Input Method Companion
 Comment=Voice input, quick phrases and clipboard sync for Linux Fcitx5
-Exec=wetype-linux gui
+Exec=wetype-linux daemon
 Icon=input-keyboard
 Terminal=false
 Type=Application

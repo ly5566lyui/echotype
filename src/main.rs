@@ -1,7 +1,7 @@
 //! WeType-Linux —— 面向 Linux 桌面的现代化输入法增强守护程序。
 //!
 //! 基于 Fcitx5 (DBus) + Rime (雾凇拼音) 底座，提供端云混合语音输入、
-//! 局域网 P2P 剪贴板同步、常用语快捷上屏与全局热键等能力。
+//! 局域网 P2P 剪贴板同步、常用语库与全局热键等能力。
 //! 模块交互总览见 `docs/architecture.md`，开发纪要见 `docs/dev/`。
 
 mod asr;
@@ -10,7 +10,6 @@ mod clipboard;
 mod config;
 mod fcitx;
 mod hotkey;
-mod ui;
 
 use anyhow::Result;
 use asr::recorder::{AudioRecorder, MAX_RECORD_SECS};
@@ -51,12 +50,11 @@ async fn main() -> Result<()> {
         AppConfig::default()
     };
 
-    // 3. 路由子命令 (默认启动 GUI 桌面应用)
-    match args.command.unwrap_or(Commands::Gui) {
-        Commands::Gui => {
-            info!("Launching WeType-Linux floating pill capsule UI (Pure Rust Slint)...");
-            let rt = tokio::runtime::Handle::current();
-            tokio::task::block_in_place(|| ui::run_pill_ui(config, config_path, rt))?;
+    // 3. 路由子命令 (默认启动后台守护服务)
+    match args.command.unwrap_or(Commands::Daemon) {
+        Commands::Daemon => {
+            info!("Running in Daemon mode.");
+            run_daemon(config).await?;
         }
         Commands::TestFcitx { text } => {
             info!("Testing connection to Fcitx5 DBus service...");
@@ -212,8 +210,8 @@ async fn run_daemon(config: AppConfig) -> Result<()> {
         })?;
     }
 
-    // 全局热键: 语音输入 (开始/停止切换，识别后自动上屏)。句柄须持有至进程退出
-    let _hotkeys = register_daemon_hotkeys(&config);
+    // 全局热键: 语音输入 (开始/停止切换或按住说话) + 剪贴板重贴。句柄须持有至进程退出
+    let _hotkeys = register_daemon_hotkeys(&config, Arc::clone(&storage));
 
     info!("WeType-Linux daemon is running. Press Ctrl+C to terminate.");
     tokio::signal::ctrl_c().await?;
@@ -224,7 +222,10 @@ async fn run_daemon(config: AppConfig) -> Result<()> {
 /// 注册守护进程侧全局热键: 语音热键触发开始/停止录音，停止后识别并自动上屏。
 /// 返回的句柄必须由调用方持有至进程退出 (Drop 即注销热键)。
 /// 热键或 ASR 引擎不可用时返回 None，仅告警，不阻断守护进程其余功能。
-fn register_daemon_hotkeys(config: &AppConfig) -> Option<hotkey::HotkeyHandle> {
+fn register_daemon_hotkeys(
+    config: &AppConfig,
+    storage: Arc<Option<clipboard::ClipboardStorage>>,
+) -> Option<hotkey::HotkeyHandle> {
     let engine = match HybridAsrEngine::from_config(&config.asr) {
         Ok(e) => Arc::new(e),
         Err(e) => {
@@ -235,19 +236,57 @@ fn register_daemon_hotkeys(config: &AppConfig) -> Option<hotkey::HotkeyHandle> {
     let recorder: Arc<Mutex<Option<AudioRecorder>>> = Arc::new(Mutex::new(None));
     let rt = tokio::runtime::Handle::current();
 
-    let specs = vec![ShortcutSpec::new(
-        "wetype.voice",
-        &config.general.voice_shortcut,
-        "WeType 语音输入",
-        HotkeyAction::Voice,
-    )];
+    let specs = vec![
+        ShortcutSpec::new(
+            "wetype.voice",
+            &config.general.voice_shortcut,
+            "WeType 语音输入",
+            HotkeyAction::Voice,
+        ),
+        ShortcutSpec::new(
+            "wetype.clipboard",
+            &config.general.clipboard_shortcut,
+            "WeType 剪贴板重贴",
+            HotkeyAction::Clipboard,
+        ),
+    ];
 
     let push_to_talk = config.general.push_to_talk;
     let dispatch: Arc<dyn Fn(HotkeyEvent) + Send + Sync> = {
         let engine = Arc::clone(&engine);
         let recorder = Arc::clone(&recorder);
+        let storage_hotkey = Arc::clone(&storage);
         let rt = rt.clone();
         Arc::new(move |event: HotkeyEvent| {
+            if event.action == HotkeyAction::Clipboard {
+                // 无胶囊 UI: 剪贴板热键 = 将最近一条剪贴板历史重新粘贴到当前窗口
+                if !event.is_press {
+                    return;
+                }
+                let last = match storage_hotkey.as_ref() {
+                    Some(st) => st
+                        .get_recent_history(1)
+                        .ok()
+                        .and_then(|v| v.into_iter().next()),
+                    None => None,
+                };
+                match last {
+                    Some(text) => {
+                        let rt = rt.clone();
+                        rt.spawn(async move {
+                            match fcitx::commit_string_cached(&text).await {
+                                Ok(()) => info!(
+                                    "Clipboard hotkey: re-committed last entry ({} chars)",
+                                    text.chars().count()
+                                ),
+                                Err(e) => error!("Clipboard hotkey commit failed: {:#}", e),
+                            }
+                        });
+                    }
+                    None => info!("Clipboard hotkey: no history yet"),
+                }
+                return;
+            }
             if event.action != HotkeyAction::Voice {
                 return;
             }

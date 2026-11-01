@@ -22,9 +22,7 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// 启动现代桌面图形界面 (默认双击桌面图标启动)
-    Gui,
-    /// 启动后台常驻守护服务
+    /// 启动后台常驻守护服务 (默认模式: 全局热键语音上屏 + 剪贴板同步 + 常用语库)
     Daemon,
     /// 触发一次语音输入并自动上屏
     VoiceInput {
