@@ -105,6 +105,7 @@ impl ClipboardStorage {
     }
 
     /// 删除一条常用语 (按内容匹配，删除最早的一条)
+    #[allow(dead_code)] // 设置中心已移除，保留 API
     pub fn delete_quick_phrase(&self, phrase: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
@@ -115,6 +116,7 @@ impl ClipboardStorage {
     }
 
     /// 用设置窗口编辑后的列表整体覆盖常用短语库
+    #[allow(dead_code)] // 设置中心已移除，保留 API
     pub fn replace_quick_phrases(&self, phrases: &[String]) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM quick_phrases", [])?;

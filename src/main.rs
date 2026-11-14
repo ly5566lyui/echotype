@@ -201,10 +201,6 @@ async fn main() -> Result<()> {
                 println!("Nothing to do. Use --add <text>, --list or --history.");
             }
         }
-        Commands::Daemon => {
-            info!("Running in Daemon mode.");
-            run_daemon(config).await?;
-        }
     }
 
     Ok(())

@@ -45,9 +45,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          DEB_FILE=$(ls target/debian/*.deb | head -1)
           gh release create "$GITHUB_REF_NAME" \
             --title "WeType-Linux v${VERSION}" \
             --generate-notes \
             "wetype-linux-${VERSION}-linux-x86_64.tar.gz" \
             "wetype-linux-${VERSION}-linux-x86_64.tar.gz.sha256" \
-            "target/debian/wetype-linux_${VERSION}_amd64.deb"
+            "$DEB_FILE"
