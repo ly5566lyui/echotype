@@ -1,4 +1,4 @@
-# WeType-Linux Configuration File
+# EchoType-Linux Configuration File
 
 [general]
 # 日志级别: trace, debug, info, warn, error
@@ -30,8 +30,8 @@ auto_punctuation = true
 # Sherpa-ONNX 离线模型路径配置
 enabled = true
 # 推荐使用 Paraformer 或 Whisper-tiny ONNX 模型
-model_dir = "~/.local/share/wetype/models/sherpa-paraformer-zh"
-tokens = "~/.local/share/wetype/models/sherpa-paraformer-zh/tokens.txt"
+model_dir = "~/.local/share/echotype/models/sherpa-paraformer-zh"
+tokens = "~/.local/share/echotype/models/sherpa-paraformer-zh/tokens.txt"
 num_threads = 2
 
 [asr.cloud]

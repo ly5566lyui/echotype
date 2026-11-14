@@ -94,8 +94,8 @@ impl Default for LocalAsrConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            model_dir: "~/.local/share/wetype/models".to_string(),
-            tokens: "~/.local/share/wetype/models/tokens.txt".to_string(),
+            model_dir: "~/.local/share/echotype/models".to_string(),
+            tokens: "~/.local/share/echotype/models/tokens.txt".to_string(),
             num_threads: 2,
         }
     }
@@ -196,14 +196,14 @@ impl AppConfig {
 
     pub fn default_config_path() -> PathBuf {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        PathBuf::from(home).join(".config/wetype/config.toml")
+        PathBuf::from(home).join(".config/echotype/config.toml")
     }
 
-    /// 剪贴板历史 / SQLite 数据库等运行时数据目录 (XDG: ~/.local/share/wetype)
+    /// 剪贴板历史 / SQLite 数据库等运行时数据目录 (XDG: ~/.local/share/echotype)
     pub fn default_data_dir() -> PathBuf {
         dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("wetype")
+            .join("echotype")
     }
 }
 

@@ -1,6 +1,6 @@
 # 贡献指南 (Contributing Guide)
 
-感谢关注并愿意为 WeType-Linux 做出贡献！
+感谢关注并愿意为 EchoType-Linux 做出贡献！
 
 ## 开发环境搭建
 

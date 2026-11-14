@@ -1,14 +1,18 @@
 [package]
-name = "wetype-linux"
-version = "0.3.0"
+name = "echotype-linux"
+version = "0.4.0"
 edition = "2021"
-authors = ["WeType-Linux Contributors"]
+authors = ["EchoType-Linux Contributors"]
 description = "A modern input method enhancement daemon for Linux (Fcitx5), featuring voice-to-text, cross-device clipboard sync, and quick phrases."
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/ly5566lyui/-wetype-"
+repository = "https://github.com/ly5566lyui/echotype"
 keywords = ["ime", "fcitx5", "speech-to-text", "clipboard", "linux"]
 categories = ["command-line-utilities", "internationalization"]
+
+[[bin]]
+name = "echotype-linux"
+path = "src/main.rs"
 
 [dependencies]
 # Async Runtime & Core Utilities
@@ -57,15 +61,15 @@ strip = true
 
 # Debian 打包元数据 (cargo-deb, 由 release 工作流调用)
 [package.metadata.deb]
-maintainer = "WeType-Linux Contributors <26673@qq.com>"
+maintainer = "EchoType-Linux Contributors <26673@qq.com>"
 depends = "libasound2 | libasound2t64"
 section = "utils"
 priority = "optional"
 assets = [
-    ["target/release/wetype-linux", "usr/bin/", "755"],
-    ["systemd/wetype.service", "usr/lib/systemd/user/", "644"],
-    ["wetype.desktop", "usr/share/applications/", "644"],
-    ["icons/hicolor/scalable/apps/wetype-linux.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["config.example.toml", "usr/share/doc/wetype-linux/", "644"],
-    ["README.md", "usr/share/doc/wetype-linux/", "644"],
+    ["target/release/echotype-linux", "usr/bin/", "755"],
+    ["systemd/echotype.service", "usr/lib/systemd/user/", "644"],
+    ["echotype.desktop", "usr/share/applications/", "644"],
+    ["icons/hicolor/scalable/apps/echotype-linux.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["config.example.toml", "usr/share/doc/echotype-linux/", "644"],
+    ["README.md", "usr/share/doc/echotype-linux/", "644"],
 ]

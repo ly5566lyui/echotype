@@ -53,7 +53,7 @@ impl LocalSherpaEngine {
                 );
 
                 let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-                let lib_dir = PathBuf::from(&home).join(".local/share/wetype/lib");
+                let lib_dir = PathBuf::from(&home).join(".local/share/echotype/lib");
 
                 let is_sense_voice = self
                     .model_dir
@@ -111,7 +111,7 @@ impl LocalSherpaEngine {
 
     fn find_sherpa_binary(&self) -> Option<PathBuf> {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        let local_bin = PathBuf::from(&home).join(".local/share/wetype/bin/sherpa-onnx-offline");
+        let local_bin = PathBuf::from(&home).join(".local/share/echotype/bin/sherpa-onnx-offline");
         if local_bin.exists() {
             return Some(local_bin);
         }
@@ -136,7 +136,7 @@ impl AsrEngine for LocalSherpaEngine {
             return Ok(String::new());
         }
 
-        let wav_path = PathBuf::from("/tmp/wetype_recording.wav");
+        let wav_path = PathBuf::from("/tmp/echotype_recording.wav");
         save_wav_16k_mono(&wav_path, pcm_data)?;
         self.recognize_wav_file(&wav_path).await
     }

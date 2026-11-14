@@ -1,7 +1,7 @@
-# WeType-Linux 🐧
+# EchoType-Linux 🐧
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/ly5566lyui/-wetype-/actions/workflows/ci.yml/badge.svg)](https://github.com/ly5566lyui/-wetype-/actions/workflows/ci.yml)
+[![CI](https://github.com/ly5566lyui/-echotype-/actions/workflows/ci.yml/badge.svg)](https://github.com/ly5566lyui/-echotype-/actions/workflows/ci.yml)
 ![Status](https://img.shields.io/badge/状态-仅供学习研究-orange)
 
 > [!IMPORTANT]
@@ -9,7 +9,7 @@
 > 功能以"跑通 + 验证"为目标，识别精度、健壮性、跨设备兼容性都有很大改进空间。
 > 本项目为独立实现，与任何商业输入法产品均无关联；不使用、不包含、不分发任何第三方专有代码、模型或资源，详见文末「免责声明」。
 
-**WeType-Linux** 是一个跑在 Linux 后台的**热键语音输入工具**：按热键说话，说完停顿一下，文字自动上屏到当前焦点窗口。附带局域网剪贴板同步与常用语库。纯 Rust、无图形界面、识别离线完成。
+**EchoType-Linux** 是一个跑在 Linux 后台的**热键语音输入工具**：按热键说话，说完停顿一下，文字自动上屏到当前焦点窗口。附带局域网剪贴板同步与常用语库。纯 Rust、无图形界面、识别离线完成。
 
 ---
 
@@ -60,8 +60,8 @@ sudo apt install fcitx5 fcitx5-rime librime-data libasound2-dev
 ### 2. 构建与安装
 
 ```bash
-git clone https://github.com/ly5566lyui/-wetype-.git
-cd -wetype-
+git clone https://github.com/ly5566lyui/-echotype-.git
+cd -echotype-
 
 cargo build --release
 bash scripts/install.sh    # 安装二进制 + systemd 服务 + 桌面入口 + GNOME 快捷键 + 主题/图标
@@ -96,7 +96,7 @@ bash scripts/integrate_fcitx5.sh
 └───────────────────────▲───────────────────────────────────┘
                         │ 命令 / 信号
 ┌───────────────────────▼───────────────────────────────────┐
-│            WeType Daemon (Rust 单二进制, 无 UI)             │
+│            EchoType Daemon (Rust 单二进制, 无 UI)             │
 │                                                           │
 │   语音输入           剪贴板            全局热键             │
 │   · cpal 录音      · 监听+敏感过滤    · X11 XGrabKey        │
@@ -121,7 +121,7 @@ bash scripts/integrate_fcitx5.sh
 ## 📁 项目结构
 
 ```text
-wetype-linux/
+echotype-linux/
 ├── src/
 │   ├── main.rs          # 入口: daemon (默认) / voice-input / repaste / phrases / test-fcitx
 │   ├── config.rs        # 配置加载与持久化 (TOML, 缺省字段向后兼容)
@@ -154,7 +154,7 @@ cargo run -- -v daemon   # 调试模式运行守护进程
 ## 🗺️ 路线图（想学什么往里加什么）
 
 - Silero VAD 精准断句（替代能量阈值）
-- `wetype-linux doctor` 自诊断命令
+- `echotype-linux doctor` 自诊断命令
 - 常用语弹窗选择器
 - 纠错学习 / 闲置微调（参考 voiceio）
 - transducer 引擎选型（解锁热词提升）
@@ -196,4 +196,4 @@ cargo run -- -v daemon   # 调试模式运行守护进程
 
 ## 📜 许可
 
-[MIT](LICENSE) © 2026 WeType-Linux Contributors
+[MIT](LICENSE) © 2026 EchoType-Linux Contributors

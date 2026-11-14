@@ -41,7 +41,7 @@ impl AsrEngine for CloudAsrEngine {
             self.endpoint
         );
 
-        let wav_path = PathBuf::from("/tmp/wetype_cloud_upload.wav");
+        let wav_path = PathBuf::from("/tmp/echotype_cloud_upload.wav");
         save_wav_16k_mono(&wav_path, pcm_data)?;
         // 语音属隐私数据，临时文件权限收紧为 0600，防止同机其他用户读取
         #[cfg(unix)]

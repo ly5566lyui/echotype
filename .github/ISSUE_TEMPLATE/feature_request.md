@@ -1,6 +1,6 @@
 ---
 name: 功能建议
-about: 为 WeType-Linux 提出新想法
+about: 为 EchoType-Linux 提出新想法
 title: "[Feature] "
 labels: enhancement
 assignees: ''

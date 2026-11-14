@@ -32,13 +32,13 @@ jobs:
       - name: Package tarball
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          DIR="wetype-linux-${GITHUB_REF_NAME}"
+          DIR="echotype-linux-${GITHUB_REF_NAME}"
           mkdir -p "$DIR"
-          cp target/release/wetype-linux "$DIR/"
+          cp target/release/echotype-linux "$DIR/"
           cp config.example.toml README.md "$DIR/"
           cp -r themes scripts systemd "$DIR/"
-          tar -czf "wetype-linux-${VERSION}-linux-x86_64.tar.gz" "$DIR"
-          sha256sum "wetype-linux-${VERSION}-linux-x86_64.tar.gz" > "wetype-linux-${VERSION}-linux-x86_64.tar.gz.sha256"
+          tar -czf "echotype-linux-${VERSION}-linux-x86_64.tar.gz" "$DIR"
+          sha256sum "echotype-linux-${VERSION}-linux-x86_64.tar.gz" > "echotype-linux-${VERSION}-linux-x86_64.tar.gz.sha256"
 
       - name: Create GitHub Release
         env:
@@ -47,8 +47,8 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           DEB_FILE=$(ls target/debian/*.deb | head -1)
           gh release create "$GITHUB_REF_NAME" \
-            --title "WeType-Linux v${VERSION}" \
+            --title "EchoType-Linux v${VERSION}" \
             --generate-notes \
-            "wetype-linux-${VERSION}-linux-x86_64.tar.gz" \
-            "wetype-linux-${VERSION}-linux-x86_64.tar.gz.sha256" \
+            "echotype-linux-${VERSION}-linux-x86_64.tar.gz" \
+            "echotype-linux-${VERSION}-linux-x86_64.tar.gz.sha256" \
             "$DEB_FILE"

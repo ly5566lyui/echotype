@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "wetype-linux",
+    name = "echotype-linux",
     version,
     about = "A modern input method enhancement companion for Linux (Fcitx5)"
 )]
@@ -50,7 +50,7 @@ pub enum Commands {
     /// 测试与 Fcitx5 的 DBus 连通性并注入文字上屏
     TestFcitx {
         /// 自定义测试上屏文字
-        #[arg(short, long, default_value = "【WeType-Linux DBus测试成功】")]
+        #[arg(short, long, default_value = "【EchoType-Linux DBus测试成功】")]
         text: String,
     },
 }

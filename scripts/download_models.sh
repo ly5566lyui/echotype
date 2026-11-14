@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_DIR="${HOME}/.local/share/wetype"
+BASE_DIR="${HOME}/.local/share/echotype"
 BIN_DIR="${BASE_DIR}/bin"
 LIB_DIR="${BASE_DIR}/lib"
 MODEL_DIR="${BASE_DIR}/models"
 mkdir -p "${BIN_DIR}" "${LIB_DIR}" "${MODEL_DIR}"
 
 echo "=========================================================="
-echo "  WeType-Linux 离线语音引擎与模型安装脚本 (Sherpa-ONNX)"
+echo "  EchoType-Linux 离线语音引擎与模型安装脚本 (Sherpa-ONNX)"
 echo "=========================================================="
 
 # 1. 下载预编译的 Sherpa-ONNX 推理引擎 (~16MB)

@@ -1,4 +1,4 @@
-//! WeType-Linux —— 面向 Linux 桌面的现代化输入法增强守护程序。
+//! EchoType-Linux —— 面向 Linux 桌面的现代化输入法增强守护程序。
 //!
 //! 基于 Fcitx5 (DBus) + Rime (雾凇拼音) 底座，提供端云混合语音输入、
 //! 局域网 P2P 剪贴板同步、常用语库与全局热键等能力。
@@ -29,7 +29,7 @@ const TAP_THRESHOLD: std::time::Duration = std::time::Duration::from_millis(300)
 /// 桌面通知 (纯后台形态的交互反馈)；无通知守护进程时静默跳过
 fn notify(summary: &str, body: &str) {
     let _ = std::process::Command::new("notify-send")
-        .args(["-a", "WeType", "-t", "4000", summary, body])
+        .args(["-a", "EchoType", "-t", "4000", summary, body])
         .spawn();
 }
 
@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
     };
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
-    info!("Starting WeType-Linux v{}...", env!("CARGO_PKG_VERSION"));
+    info!("Starting EchoType-Linux v{}...", env!("CARGO_PKG_VERSION"));
 
     // 2. 加载配置文件
     let config_path = args.config.unwrap_or_else(AppConfig::default_config_path);
@@ -279,9 +279,9 @@ async fn run_daemon(config: AppConfig) -> Result<()> {
         let _hotkeys = register_daemon_hotkeys(&config, Arc::clone(&storage));
     }
 
-    info!("WeType-Linux daemon is running. Press Ctrl+C to terminate.");
+    info!("EchoType-Linux daemon is running. Press Ctrl+C to terminate.");
     tokio::signal::ctrl_c().await?;
-    info!("Shutting down WeType-Linux daemon.");
+    info!("Shutting down EchoType-Linux daemon.");
     Ok(())
 }
 
@@ -306,15 +306,15 @@ fn register_daemon_hotkeys(
 
     let specs = vec![
         ShortcutSpec::new(
-            "wetype.voice",
+            "echotype.voice",
             &config.general.voice_shortcut,
-            "WeType 语音输入",
+            "EchoType 语音输入",
             HotkeyAction::Voice,
         ),
         ShortcutSpec::new(
-            "wetype.clipboard",
+            "echotype.clipboard",
             &config.general.clipboard_shortcut,
-            "WeType 剪贴板重贴",
+            "EchoType 剪贴板重贴",
             HotkeyAction::Clipboard,
         ),
     ];

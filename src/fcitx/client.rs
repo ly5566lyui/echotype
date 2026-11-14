@@ -4,10 +4,10 @@ use std::sync::Mutex;
 use tracing::{debug, info, warn};
 use zbus::Connection;
 
-const WETYPE_LUA_EXTENSION: &str = r#"local fcitx = require('fcitx')
+const ECHOTYPE_LUA_EXTENSION: &str = r#"local fcitx = require('fcitx')
 
-function onWeTypeTrigger()
-    local path = '/tmp/wetype_commit.txt'
+function onEchoTypeTrigger()
+    local path = '/tmp/echotype_commit.txt'
     local f = io.open(path, 'r')
     if f then
         local text = f:read('*a')
@@ -20,10 +20,10 @@ function onWeTypeTrigger()
     return false
 end
 
-fcitx.watchEvent(fcitx.EventType.InputMethodActivated, 'onWeTypeTrigger')
-fcitx.watchEvent(fcitx.EventType.InputMethodDeactivated, 'onWeTypeTrigger')
-fcitx.watchEvent(fcitx.EventType.SwitchInputMethod, 'onWeTypeTrigger')
-fcitx.watchEvent(fcitx.EventType.FocusIn, 'onWeTypeTrigger')
+fcitx.watchEvent(fcitx.EventType.InputMethodActivated, 'onEchoTypeTrigger')
+fcitx.watchEvent(fcitx.EventType.InputMethodDeactivated, 'onEchoTypeTrigger')
+fcitx.watchEvent(fcitx.EventType.SwitchInputMethod, 'onEchoTypeTrigger')
+fcitx.watchEvent(fcitx.EventType.FocusIn, 'onEchoTypeTrigger')
 "#;
 
 /// 全进程共享的 Fcitx5 客户端 (避免每次上屏都重建 DBus 连接并检查 Lua 扩展)
@@ -69,21 +69,21 @@ impl FcitxClient {
         Ok(reply)
     }
 
-    /// 确保 `~/.local/share/fcitx5/lua/imeapi/extensions/wetype.lua` 已安装并被 Fcitx5 加载
+    /// 确保 `~/.local/share/fcitx5/lua/imeapi/extensions/echotype.lua` 已安装并被 Fcitx5 加载
     async fn ensure_lua_extension(&self) -> Result<()> {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
         let ext_dir = PathBuf::from(home).join(".local/share/fcitx5/lua/imeapi/extensions");
-        let ext_file = ext_dir.join("wetype.lua");
+        let ext_file = ext_dir.join("echotype.lua");
 
         let needs_reload = if let Ok(existing) = std::fs::read_to_string(&ext_file) {
-            existing != WETYPE_LUA_EXTENSION
+            existing != ECHOTYPE_LUA_EXTENSION
         } else {
             true
         };
 
         if needs_reload {
             std::fs::create_dir_all(&ext_dir)?;
-            std::fs::write(&ext_file, WETYPE_LUA_EXTENSION)?;
+            std::fs::write(&ext_file, ECHOTYPE_LUA_EXTENSION)?;
             info!("Installed Fcitx5 Lua bridge at {:?}", ext_file);
 
             let _: () = self
@@ -114,9 +114,9 @@ impl FcitxClient {
         info!("Committing string to Fcitx5: \"{}\"", text);
 
         // 1. 写入待提交文本至临时信箱 (权限收紧为 0600，避免同机其他用户读取)
-        let commit_path = "/tmp/wetype_commit.txt";
+        let commit_path = "/tmp/echotype_commit.txt";
         std::fs::write(commit_path, text.as_bytes())
-            .context("Failed to write /tmp/wetype_commit.txt")?;
+            .context("Failed to write /tmp/echotype_commit.txt")?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

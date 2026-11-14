@@ -1,12 +1,12 @@
 [Desktop Entry]
-Name=WeType 输入法助手
+Name=EchoType 输入法助手
 GenericName=Input Method Companion
 Comment=Voice input, quick phrases and clipboard sync for Linux Fcitx5
-Exec=wetype-linux daemon
-Icon=wetype-linux
+Exec=echotype-linux daemon
+Icon=echotype-linux
 Terminal=false
 Type=Application
 Categories=Utility;InputMethod;AudioVideo;
-Keywords=ime;fcitx5;speech;voice;clipboard;wetype;wechat;
+Keywords=ime;fcitx5;speech;voice;clipboard;echotype;wechat;
 StartupNotify=true
-StartupWMClass=wetype-linux
+StartupWMClass=echotype-linux

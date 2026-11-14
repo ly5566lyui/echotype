@@ -50,7 +50,7 @@ async fn run_portal(
         .to_string();
     let sender = unique.trim_start_matches(':').replace('.', "_");
     let token_base = format!(
-        "wetype{}",
+        "echotype{}",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()

@@ -19,7 +19,7 @@ use tracing::{debug, error, info, warn};
 use crate::config::P2pSyncConfig;
 
 /// mDNS 服务类型 (局域网内设备通过它互相发现)
-const SERVICE_TYPE: &str = "_wetype._tcp.local.";
+const SERVICE_TYPE: &str = "_echotype._tcp.local.";
 /// 同步协议版本
 const PROTOCOL_VERSION: u8 = 1;
 /// 单条同步消息上限 (1 MiB)，超出直接丢弃，防止恶意/异常流量
@@ -43,7 +43,7 @@ struct P2pClipboardMessage {
 
 /// 局域网跨设备剪贴板同步管理器
 ///
-/// - 发现：mDNS 注册 `_wetype._tcp.local.` 服务并浏览对端
+/// - 发现：mDNS 注册 `_echotype._tcp.local.` 服务并浏览对端
 /// - 传输：TCP 长度前缀帧
 /// - 加密：pair_secret 经 SHA-256 派生密钥，AES-256-GCM 认证加密
 pub struct P2pSyncManager {
@@ -397,7 +397,7 @@ async fn send_frame(addr: SocketAddr, frame: &[u8]) -> Result<()> {
 /// 由预共享配对口令派生 AES-256 密钥 (加盐域隔离，避免与其他用途的口令哈希重合)
 fn derive_key(pair_secret: &str) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"wetype-p2p-v1:");
+    hasher.update(b"echotype-p2p-v1:");
     hasher.update(pair_secret.trim().as_bytes());
     hasher.finalize().into()
 }

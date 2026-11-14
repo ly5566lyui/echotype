@@ -1,12 +1,12 @@
 [Unit]
-Description=WeType-Linux Input Method Enhancement Daemon
-Documentation=https://github.com/ly5566lyui/-wetype-
+Description=EchoType-Linux Input Method Enhancement Daemon
+Documentation=https://github.com/ly5566lyui/-echotype-
 After=graphical-session.target fcitx5.service
 PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/wetype-linux daemon
+ExecStart=%h/.local/bin/echotype-linux daemon
 Restart=on-failure
 RestartSec=3s
 Environment=RUST_LOG=info
