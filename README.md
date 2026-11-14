@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Linux%20(Wayland%20%7C%20X11)-brightgreen.svg)]()
 [![CI](https://github.com/ly5566lyui/-wetype-/actions/workflows/ci.yml/badge.svg)](https://github.com/ly5566lyui/-wetype-/actions/workflows/ci.yml)
 
-**WeType-Linux** 是一个专为 Linux 桌面环境打造的**现代输入法增强守护程序**。基于 **Fcitx5 + Rime (雾凇拼音)** 基座，提供类似现代商业输入法（如微信输入法）的流畅功能体验，包括**端云混合语音输入、跨设备局域网剪贴板同步、智能常用语快速上屏**等。
+**WeType-Linux** 是一个专为 Linux 桌面环境打造的**现代输入法增强守护程序**。基于 **Fcitx5 + Rime (雾凇拼音)** 基座，提供比肩主流商业输入法的流畅功能体验，包括**端云混合语音输入、跨设备局域网剪贴板同步、智能常用语快速上屏**等。
 
 ---
 

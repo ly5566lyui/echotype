@@ -61,7 +61,7 @@ fi
 AUTOSTART_DIR="${HOME}/.config/autostart"
 mkdir -p "${AUTOSTART_DIR}"
 install -m 644 wetype.desktop "${AUTOSTART_DIR}/wetype.desktop"
-echo "✓ 微信键盘助手桌面快捷方式与自启动已安装"
+echo "✓ WeType 输入法助手桌面快捷方式与自启动已安装"
 
 echo "=========================================================="
 echo "安装完成！你可以通过以下方式启动 WeType-Linux："
