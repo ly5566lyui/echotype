@@ -65,19 +65,29 @@ if command -v rime_deployer &>/dev/null; then
 fi
 echo "   ✓ 拼音核心已定制为「WeType 键盘」"
 
-# 4. 配置 GNOME 系统全局快捷键 (Super+V 快速语音)
+# 4. 配置 GNOME 系统全局快捷键 (Wayland 下 X11 钩子收不到键盘, 由 GNOME 原生接管)
 if command -v gsettings &>/dev/null; then
+    # 会话环境自举: 从其他环境执行时 dconf 需要用户会话总线
+    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+
     echo "--> 4. 注册 GNOME 全局快捷键..."
     KB_VOICE="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/wetype-voice/"
+    KB_PASTE="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/wetype-repaste/"
 
-    gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['$KB_VOICE']" || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['$KB_VOICE', '$KB_PASTE']" || true
 
-    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_VOICE name "WeType 语音输入" || true
-    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_VOICE command "${BIN_DIR}/wetype-linux voice-input" || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_VOICE name "WeType 语音输入 (说完自动上屏)" || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_VOICE command "${BIN_DIR}/wetype-linux voice-input --duration 8" || true
     gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_VOICE binding "<Super>v" || true
 
+    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_PASTE name "WeType 剪贴板重贴" || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_PASTE command "${BIN_DIR}/wetype-linux repaste" || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_PASTE binding "<Control><Alt>h" || true
+
     echo "   ✓ 全局快捷键已注册："
-    echo "     - Super + V : 唤起 4 秒快速语音转文字自动上屏"
+    echo "     - Super + V      : 开始语音输入，说完停顿一下自动上屏"
+    echo "     - Ctrl + Alt + H : 把最近一条剪贴板历史粘贴到光标处"
 fi
 
 # 5. 安装应用图标 (Nord 风格, 基于 Lucide 图形重绘)

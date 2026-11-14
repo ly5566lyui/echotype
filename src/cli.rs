@@ -33,6 +33,8 @@ pub enum Commands {
         #[arg(short, long)]
         wav: Option<PathBuf>,
     },
+    /// 将最近一条剪贴板历史重新粘贴到当前窗口 (供 GNOME 快捷键绑定调用)
+    Repaste,
     /// 列出或管理常用语与剪贴板历史
     Phrases {
         /// 添加一条常用语

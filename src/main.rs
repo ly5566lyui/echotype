@@ -59,6 +59,23 @@ async fn main() -> Result<()> {
             info!("Running in Daemon mode.");
             run_daemon(config).await?;
         }
+        Commands::Repaste => {
+            // GNOME 快捷键入口: 将最近一条剪贴板历史重新粘贴到当前窗口
+            let data_dir = AppConfig::default_data_dir();
+            let last = clipboard::ClipboardStorage::new(data_dir.join("storage.db"))
+                .ok()
+                .and_then(|st| st.get_recent_history(1).ok())
+                .and_then(|v| v.into_iter().next());
+            match last {
+                Some(text) if !text.trim().is_empty() => {
+                    match fcitx::commit_string_cached(&text).await {
+                        Ok(()) => info!("Repaste: committed last entry ({} chars)", text.chars().count()),
+                        Err(e) => error!("Repaste commit failed: {:#}", e),
+                    }
+                }
+                _ => warn!("Repaste: no clipboard history yet"),
+            }
+        }
         Commands::TestFcitx { text } => {
             info!("Testing connection to Fcitx5 DBus service...");
             match FcitxClient::new().await {
@@ -226,7 +243,18 @@ async fn run_daemon(config: AppConfig) -> Result<()> {
     }
 
     // 全局热键: 语音输入 (开始/停止切换或按住说话) + 剪贴板重贴。句柄须持有至进程退出
-    let _hotkeys = register_daemon_hotkeys(&config, Arc::clone(&storage));
+    //
+    // GNOME Wayland 特例: 合成器不把键盘事件转给 Xwayland，X11 全局钩子收不到
+    // 真键盘事件；此时由集成脚本注册的 GNOME 原生快捷键 (Super+V / Ctrl+Alt+H)
+    // 直接调用 voice-input / repaste 子命令接管触发，daemon 内不再注册。
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    if desktop.contains("GNOME") {
+        info!(
+            "GNOME session detected: hotkeys delegated to GNOME custom keybindings (Super+V / Ctrl+Alt+H)."
+        );
+    } else {
+        let _hotkeys = register_daemon_hotkeys(&config, Arc::clone(&storage));
+    }
 
     info!("WeType-Linux daemon is running. Press Ctrl+C to terminate.");
     tokio::signal::ctrl_c().await?;
