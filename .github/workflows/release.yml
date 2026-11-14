@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Install cargo-deb
+        uses: taiki-e/install-action@cargo-deb
+
+      - name: Build Debian package
+        run: cargo deb
+
+      - name: Package tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DIR="wetype-linux-${GITHUB_REF_NAME}"
+          mkdir -p "$DIR"
+          cp target/release/wetype-linux "$DIR/"
+          cp config.example.toml README.md "$DIR/"
+          cp -r themes scripts systemd "$DIR/"
+          tar -czf "wetype-linux-${VERSION}-linux-x86_64.tar.gz" "$DIR"
+          sha256sum "wetype-linux-${VERSION}-linux-x86_64.tar.gz" > "wetype-linux-${VERSION}-linux-x86_64.tar.gz.sha256"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "WeType-Linux v${VERSION}" \
+            --generate-notes \
+            "wetype-linux-${VERSION}-linux-x86_64.tar.gz" \
+            "wetype-linux-${VERSION}-linux-x86_64.tar.gz.sha256" \
+            "target/debian/wetype-linux_${VERSION}_amd64.deb"

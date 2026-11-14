@@ -54,3 +54,18 @@ futures-util = "0.3"
 opt-level = 3
 codegen-units = 1
 strip = true
+
+# Debian 打包元数据 (cargo-deb, 由 release 工作流调用)
+[package.metadata.deb]
+maintainer = "WeType-Linux Contributors <26673@qq.com>"
+depends = "libasound2 | libasound2t64"
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/wetype-linux", "usr/bin/", "755"],
+    ["systemd/wetype.service", "usr/lib/systemd/user/", "644"],
+    ["wetype.desktop", "usr/share/applications/", "644"],
+    ["icons/hicolor/scalable/apps/wetype-linux.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["config.example.toml", "usr/share/doc/wetype-linux/", "644"],
+    ["README.md", "usr/share/doc/wetype-linux/", "644"],
+]
