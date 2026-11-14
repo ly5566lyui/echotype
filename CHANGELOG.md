@@ -4,10 +4,10 @@
 
 ## [0.3.0] - 2026-11-01
 
-### Changed (视觉重制 · 去微信化)
-- **候选框主题整体换新**: 采用 Nord 配色体系新增 `WeType Midnight` (暗色) / `WeType Daylight` (亮色) 双主题，替代原微信绿主题 (旧主题保留于 git 历史)
+### Changed (视觉重制 · 去商业化)
+- **候选框主题整体换新**: 采用 Nord 配色体系新增 `WeType Midnight` (暗色) / `WeType Daylight` (亮色) 双主题，替代原绿色主题 (旧主题保留于 git 历史)
 - **原创应用图标**: 键盘 + 声波双意象 SVG (Nord 配色)，图形参考 [Lucide](https://lucide.dev) (ISC) 重绘；集成脚本自动安装至 hicolor 图标目录
-- 品牌文案全面去微信化：集成脚本、桌面入口 (`WeType 输入法助手`)、README；免责声明中的商标说明保持不变
+- 品牌文案全面中性化：集成脚本、桌面入口 (`WeType 输入法助手`)、README；免责声明中的商标说明保持不变
 - 移除悬浮胶囊后同步清理集成脚本中的药丸快捷键绑定 (gui 子命令已不存在)
 
 ## [0.2.0] - 2026-10-27
@@ -63,6 +63,6 @@
 - 本地 SQLite 剪贴板历史与快捷短语管理模块 (`src/clipboard/`)。
 - 局域网 P2P 发现与 AES-GCM 端到端加密同步协议骨架。
 - 自动化构建部署脚本 (`scripts/install.sh`) 与离线模型自动拉取脚本 (`scripts/download_models.sh`)。
-- 仿微信键盘风格的 Fcitx5 极简高雅主题 (`themes/wetype-clean/`)。
+- 仿商业输入法风格的 Fcitx5 极简高雅主题 (`themes/wetype-clean/`)。
 - Systemd 用户服务 (`systemd/wetype.service`) 与桌面自启动配置。
 - GitHub Actions 持续集成自动化工作流。
