@@ -120,8 +120,27 @@ fn x11_register(
     specs: Vec<ShortcutSpec>,
     dispatch: Arc<dyn Fn(HotkeyEvent) + Send + Sync>,
 ) -> Result<GlobalHotKeyManager> {
-    let manager =
-        GlobalHotKeyManager::new().context("X11 global hotkey manager unavailable")?;
+    // catch_unwind 防护: global-hotkey 在 X 不可达/认证失败时可能 panic 而非返回 Err，
+    // 守护进程必须存活 (崩了 = 热键失效 + 剪贴板同步失效)
+    let manager = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        GlobalHotKeyManager::new()
+    })) {
+        Ok(Ok(manager)) => manager,
+        Ok(Err(e)) => {
+            return Err(anyhow::Error::new(e).context("X11 global hotkey manager unavailable"))
+        }
+        Err(panic_err) => {
+            let msg = panic_err
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| panic_err.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                .unwrap_or_else(|| "unknown panic".to_string());
+            return Err(anyhow::anyhow!(
+                "X11 global hotkey manager panicked: {}",
+                msg
+            ));
+        }
+    };
 
     let mut lookup: HashMap<u32, HotkeyAction> = HashMap::new();
     for spec in &specs {
