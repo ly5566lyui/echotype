@@ -26,6 +26,13 @@ use tracing_subscriber::EnvFilter;
 /// 单键自适应阈值: 按压短于此时长 = 点按 (切换模式收尾待再按), 长于 = 按住说话
 const TAP_THRESHOLD: std::time::Duration = std::time::Duration::from_millis(300);
 
+/// 桌面通知 (纯后台形态的交互反馈)；无通知守护进程时静默跳过
+fn notify(summary: &str, body: &str) {
+    let _ = std::process::Command::new("notify-send")
+        .args(["-a", "WeType", "-t", "4000", summary, body])
+        .spawn();
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Cli::parse();
@@ -69,11 +76,20 @@ async fn main() -> Result<()> {
             match last {
                 Some(text) if !text.trim().is_empty() => {
                     match fcitx::commit_string_cached(&text).await {
-                        Ok(()) => info!("Repaste: committed last entry ({} chars)", text.chars().count()),
-                        Err(e) => error!("Repaste commit failed: {:#}", e),
+                        Ok(()) => {
+                            info!("Repaste: committed last entry ({} chars)", text.chars().count());
+                            notify("📋 已重贴剪贴板", &text);
+                        }
+                        Err(e) => {
+                            error!("Repaste commit failed: {:#}", e);
+                            notify("❌ 重贴失败", "Fcitx5 未响应");
+                        }
                     }
                 }
-                _ => warn!("Repaste: no clipboard history yet"),
+                _ => {
+                    warn!("Repaste: no clipboard history yet");
+                    notify("📭 剪贴板历史为空", "先复制点内容");
+                }
             }
         }
         Commands::TestFcitx { text } => {
@@ -102,6 +118,10 @@ async fn main() -> Result<()> {
                 if let Some(secs) = duration {
                     info!("Recording from microphone for {} seconds...", secs);
                     recorder.start()?;
+                    notify(
+                        "🎙️ 正在录音",
+                        &format!("{} 秒窗口，说完停顿自动上屏", secs),
+                    );
                     wait_record_window(
                         &recorder,
                         secs,
@@ -112,6 +132,7 @@ async fn main() -> Result<()> {
                 } else if !std::io::stdin().is_terminal() {
                     info!("Non-terminal hotkey invocation detected, recording for 4 seconds...");
                     recorder.start()?;
+                    notify("🎙️ 正在录音", "说完停顿一下，自动上屏");
                     wait_record_window(
                         &recorder,
                         4,
@@ -143,8 +164,14 @@ async fn main() -> Result<()> {
 
             if !text.is_empty() {
                 match fcitx::commit_string_cached(&text).await {
-                    Ok(()) => info!("Successfully injected recognized text into active window!"),
-                    Err(e) => error!("Could not inject text into Fcitx5: {:#}", e),
+                    Ok(()) => {
+                        info!("Successfully injected recognized text into active window!");
+                        notify("✅ 已上屏", &text);
+                    }
+                    Err(e) => {
+                        error!("Could not inject text into Fcitx5: {:#}", e);
+                        notify("❌ 上屏失败", "Fcitx5 未响应");
+                    }
                 }
             }
         }
@@ -321,10 +348,13 @@ fn register_daemon_hotkeys(
                         let rt = rt.clone();
                         rt.spawn(async move {
                             match fcitx::commit_string_cached(&text).await {
-                                Ok(()) => info!(
-                                    "Clipboard hotkey: re-committed last entry ({} chars)",
-                                    text.chars().count()
-                                ),
+                                Ok(()) => {
+                                    info!(
+                                        "Clipboard hotkey: re-committed last entry ({} chars)",
+                                        text.chars().count()
+                                    );
+                                    notify("📋 已重贴剪贴板", &text);
+                                }
                                 Err(e) => error!("Clipboard hotkey commit failed: {:#}", e),
                             }
                         });
@@ -392,9 +422,10 @@ fn register_daemon_hotkeys(
                     // 空闲 -> 开始录音
                     let rec = AudioRecorder::new();
                     match rec.start() {
-                        Ok(()) => {
-                            info!("Voice hotkey: recording started...");
-                            *guard = Some(rec);
+                                Ok(()) => {
+                                    info!("Voice hotkey: recording started...");
+                                    notify("🎙️ 正在录音", "说完停顿一下，自动上屏");
+                                    *guard = Some(rec);
                             *press_at.lock().unwrap() = Some(std::time::Instant::now());
 
                             // 录音监督循环: 说话后的持续静音自动结束 + 60s 时长上限
@@ -498,22 +529,31 @@ async fn wait_record_window(recorder: &AudioRecorder, secs: u64, auto_stop: bool
 /// 识别 PCM 并将结果上屏到 Fcitx5 焦点窗口 (手动停止与超时自动停止共用)
 async fn recognize_and_commit(engine: Arc<HybridAsrEngine>, audio: Vec<i16>) {    if audio.is_empty() {
         warn!("Captured audio buffer is empty.");
+        notify("🤫 没有录到声音", "请靠近麦克风再说一次");
         return;
     }
     let text = match engine.recognize(&audio).await {
         Ok(t) => t,
         Err(e) => {
             error!("ASR failed: {:#}", e);
+            notify("❌ 识别失败", "请检查音频设备与网络");
             return;
         }
     };
     if text.is_empty() {
         warn!("ASR returned empty text.");
+        notify("🤫 未识别到语音", "请靠近麦克风再说一次");
         return;
     }
     info!("ASR result: \"{}\"", text);
     match fcitx::commit_string_cached(&text).await {
-        Ok(()) => info!("Recognized text committed to active window."),
-        Err(e) => error!("Failed to commit text: {:#}", e),
+        Ok(()) => {
+            info!("Recognized text committed to active window.");
+            notify("✅ 已上屏", &text);
+        }
+        Err(e) => {
+            error!("Failed to commit text: {:#}", e);
+            notify("❌ 上屏失败", "Fcitx5 未响应，请重启 Fcitx5");
+        }
     }
 }
