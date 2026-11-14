@@ -23,6 +23,9 @@ use std::sync::{Arc, Mutex};
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
+/// 单键自适应阈值: 按压短于此时长 = 点按 (切换模式收尾待再按), 长于 = 按住说话
+const TAP_THRESHOLD: std::time::Duration = std::time::Duration::from_millis(300);
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Cli::parse();
@@ -246,6 +249,8 @@ fn register_daemon_hotkeys(
         }
     };
     let recorder: Arc<Mutex<Option<AudioRecorder>>> = Arc::new(Mutex::new(None));
+    // 按压起始时刻: 用于单键自适应 (<300ms = 点按切换, >=300ms = 按住说话)
+    let press_at: Arc<Mutex<Option<std::time::Instant>>> = Arc::new(Mutex::new(None));
     let rt = tokio::runtime::Handle::current();
 
     let specs = vec![
@@ -263,7 +268,6 @@ fn register_daemon_hotkeys(
         ),
     ];
 
-    let push_to_talk = config.general.push_to_talk;
     let silence_auto_stop = config.general.silence_auto_stop;
     let silence_timeout_ms = config.general.silence_timeout_ms;
     let dispatch: Arc<dyn Fn(HotkeyEvent) + Send + Sync> = {
@@ -305,18 +309,51 @@ fn register_daemon_hotkeys(
                 return;
             }
             let recording = recorder.lock().map(|g| g.is_some()).unwrap_or(false);
-            // 事件决策 (is_press, recording, 按住说话):
-            //  - 空闲时按下                -> 开始录音 (两种模式一致)
-            //  - 录音中再按 (切换模式)     -> 停止并识别
-            //  - 录音中松开 (按住说话模式) -> 停止并识别
-            let stop_now = match (event.is_press, recording, push_to_talk) {
-                (true, true, false) => true,
-                (false, true, true) => true,
-                _ => false,
-            };
-            if !stop_now && (recording || !event.is_press) {
-                return; // 无事发生: 按住模式下录音中再次按下 / 松开但本就空闲
+            // 单键自适应 (借鉴 WowType 的 300ms 阈值):
+            //  - 空闲时按下              -> 开始录音 (点按 / 按住皆由此进入)
+            //  - 录音中再按 (任意时长)   -> 结束并识别 (点按切换的收尾)
+            //  - 按住 >=300ms 后松开     -> 结束并识别 (按住说话)
+            //  - 点按 (<300ms) 后松开    -> 继续录音, 等用户说完再按一次结束
+            if event.is_press && recording {
+                // 录音中再按 -> 结束并识别
+                let rec = match recorder.lock().ok().and_then(|mut g| g.take()) {
+                    Some(r) => r,
+                    None => return,
+                };
+                *press_at.lock().unwrap() = None;
+                info!("Voice hotkey: recording stopped, running ASR...");
+                let audio = rec.stop();
+                let engine = Arc::clone(&engine);
+                rt.spawn(async move {
+                    recognize_and_commit(engine, audio).await;
+                });
+                return;
             }
+            if !event.is_press {
+                // 松开: 按压 >=300ms 视为按住说话 -> 结束; 点按开始则继续保持录音
+                let held_long = press_at
+                    .lock()
+                    .ok()
+                    .and_then(|t| *t)
+                    .map(|t| t.elapsed() >= TAP_THRESHOLD)
+                    .unwrap_or(false);
+                if !held_long || !recording {
+                    return;
+                }
+                let rec = match recorder.lock().ok().and_then(|mut g| g.take()) {
+                    Some(r) => r,
+                    None => return,
+                };
+                *press_at.lock().unwrap() = None;
+                info!("Voice hotkey: hold released, running ASR...");
+                let audio = rec.stop();
+                let engine = Arc::clone(&engine);
+                rt.spawn(async move {
+                    recognize_and_commit(engine, audio).await;
+                });
+                return;
+            }
+            // 走到这里 = 空闲时按下 -> 开始录音
 
             let mut guard = match recorder.lock() {
                 Ok(g) => g,
@@ -330,6 +367,7 @@ fn register_daemon_hotkeys(
                         Ok(()) => {
                             info!("Voice hotkey: recording started...");
                             *guard = Some(rec);
+                            *press_at.lock().unwrap() = Some(std::time::Instant::now());
 
                             // 录音监督循环: 说话后的持续静音自动结束 + 60s 时长上限
                             let recorder_wd = Arc::clone(&recorder);

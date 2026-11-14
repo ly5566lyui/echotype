@@ -29,7 +29,8 @@ pub struct GeneralConfig {
     pub candidate_count: i32,
     /// Fcitx5 候选词字号 (pt), 写入 classicui.conf 的 Font
     pub candidate_font_size: i32,
-    /// 按住说话 (push-to-talk): 热键按下开始录音、松开结束 (关闭则为开始/停止切换)
+    /// [已废弃] 按住说话配置 —— 单键自适应已取代: 按压 <300ms 为点按切换、
+    /// ≥300ms 为按住说话，无需配置。字段保留仅为旧配置文件兼容。
     pub push_to_talk: bool,
     /// 说话结束后检测到持续静音时自动结束录音并识别
     pub silence_auto_stop: bool,

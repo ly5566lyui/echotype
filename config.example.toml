@@ -3,7 +3,7 @@
 [general]
 # 日志级别: trace, debug, info, warn, error
 log_level = "info"
-# 全局热键呼出语音输入 (推荐: Ctrl+Alt+V 避免与桌面环境冲突, 亦支持 Alt+Space, Super+V)
+# 全局热键呼出语音输入 (推荐: Ctrl+Alt+V; 按住 ≥0.3 秒 = 松手即上屏, 轻点 = 说完再按一次结束)
 voice_shortcut = "Ctrl+Alt+V"
 # 全局热键呼出常用语 / 剪贴板历史 (例如: Alt+H)
 clipboard_shortcut = "Alt+H"
