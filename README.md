@@ -1,7 +1,7 @@
 # EchoType-Linux 🐧
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/ly5566lyui/-echotype-/actions/workflows/ci.yml/badge.svg)](https://github.com/ly5566lyui/-echotype-/actions/workflows/ci.yml)
+[![CI](https://github.com/ly5566lyui/echotype/actions/workflows/ci.yml/badge.svg)](https://github.com/ly5566lyui/echotype/actions/workflows/ci.yml)
 ![Status](https://img.shields.io/badge/状态-仅供学习研究-orange)
 
 > [!IMPORTANT]
@@ -60,8 +60,8 @@ sudo apt install fcitx5 fcitx5-rime librime-data libasound2-dev
 ### 2. 构建与安装
 
 ```bash
-git clone https://github.com/ly5566lyui/-echotype-.git
-cd -echotype-
+git clone https://github.com/ly5566lyui/echotype.git
+cd echotype
 
 cargo build --release
 bash scripts/install.sh    # 安装二进制 + systemd 服务 + 桌面入口 + GNOME 快捷键 + 主题/图标
