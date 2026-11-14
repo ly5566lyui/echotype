@@ -95,6 +95,15 @@ impl AsrEngine for HybridAsrEngine {
             }
         };
 
+        // 识别结果黑名单: (笑声)/<|nospeech|> 等无效输出整条丢弃
+        let raw = match postprocess::filter_junk(&raw) {
+            Some(t) => t,
+            None => {
+                warn!("ASR output was entirely junk; discarding.");
+                return Ok(String::new());
+            }
+        };
+
         // 语音后处理: 句末标点补全 + 全角冒号规范化 + 重复标点折叠
         let text = polish(&raw, self.auto_punctuation);
         if text != raw {

@@ -23,7 +23,7 @@ candidate_count = 5
 mode = "hybrid"
 # 识别语种偏好: 0 普通话, 1 英语, 2 粤语
 language = 0
-# 智能断句与标点符号 (根据自然停顿插入逗号/句号/问号)
+# 智能断句与标点符号 (句末补全 + 12：30→12:30 符号转换 + 重复标点折叠)
 auto_punctuation = true
 
 [asr.local]

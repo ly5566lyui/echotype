@@ -87,6 +87,86 @@ pub fn polish(text: &str, auto_punctuation: bool) -> String {
     }
 }
 
+/// ASR 无效输出黑名单 (对齐 WowType ProcessChannel)：
+/// 命中任一特征的输出先剔除命中片段，剩余为空则整条丢弃 (返回 None)
+const JUNK_PATTERNS: &[&str] = &[
+    "<|nospeech|>", "[blank_audio]", "(笑声)", "（笑声）", "(键盘声)",
+    "（键盘声）", "(键盘敲击声)", "（键盘敲击声）", "[music]", "（音乐）",
+    "(音乐)", "谢谢观看", "字幕由", "amara.org", "请不吝点赞订阅",
+];
+
+/// 剔除黑名单片段 (大小写不敏感)；整条均为无效输出时返回 None
+pub fn filter_junk(text: &str) -> Option<String> {
+    let lower = text.to_lowercase();
+    if !JUNK_PATTERNS.iter().any(|p| lower.contains(p)) {
+        return Some(text.trim().to_string());
+    }
+    let cleaned = strip_all(text, JUNK_PATTERNS);
+    let cleaned = cleaned.trim().to_string();
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned)
+    }
+}
+
+/// 大小写不敏感地剔除所有命中片段 (按字符滑窗，兼容多字节字符)
+fn strip_all(text: &str, patterns: &[&str]) -> String {
+    let hay: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < hay.len() {
+        let mut matched: Option<usize> = None;
+        for p in patterns {
+            let pc: Vec<char> = p.chars().collect();
+            if pc.is_empty() || i + pc.len() > hay.len() {
+                continue;
+            }
+            let window: String = hay[i..i + pc.len()].iter().collect();
+            if window.to_lowercase() == *p {
+                matched = Some(pc.len());
+                break;
+            }
+        }
+        match matched {
+            Some(len) => i += len,
+            None => {
+                out.push(hay[i]);
+                i += 1;
+            }
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod junk_tests {
+    use super::*;
+
+    #[test]
+    fn pure_junk_is_discarded() {
+        assert_eq!(filter_junk("<|nospeech|>"), None);
+        assert_eq!(filter_junk("(笑声)"), None);
+        assert_eq!(filter_junk("[BLANK_AUDIO]"), None);
+    }
+
+    #[test]
+    fn mixed_text_keeps_body() {
+        assert_eq!(
+            filter_junk("你好(笑声)世界").as_deref(),
+            Some("你好世界")
+        );
+    }
+
+    #[test]
+    fn clean_text_untouched() {
+        assert_eq!(
+            filter_junk("今天开关于Nord配色的会议").as_deref(),
+            Some("今天开关于Nord配色的会议")
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

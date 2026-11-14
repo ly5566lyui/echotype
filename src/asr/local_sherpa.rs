@@ -71,6 +71,8 @@ impl LocalSherpaEngine {
                         .arg("--sense-voice-use-itn=1");
                 } else {
                     cmd.arg(format!("--paraformer={}", model_file.display()));
+                    // 注: paraformer 引擎仅支持 greedy_search，热词提升 (需要
+                    // modified_beam_search) 不可用——热词黑名单由 postprocess 兜底
                 }
 
                 cmd.arg(wav_path);
@@ -101,10 +103,10 @@ impl LocalSherpaEngine {
         }
 
         warn!(
-            "Sherpa-ONNX binary or model not found in {:?}. Returning fallback text (run ./scripts/download_models.sh to install real offline ASR).",
+            "Sherpa-ONNX binary or model not found in {:?}. Voice input unavailable (run scripts/download_models.sh to install offline ASR).",
             self.model_dir
         );
-        Ok("你好，这是WeType-Linux离线语音输入测试".to_string())
+        anyhow::bail!("Sherpa-ONNX not installed; voice input unavailable (run scripts/download_models.sh)")
     }
 
     fn find_sherpa_binary(&self) -> Option<PathBuf> {
