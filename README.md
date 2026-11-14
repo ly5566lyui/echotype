@@ -87,6 +87,51 @@ bash scripts/integrate_fcitx5.sh
 
 ---
 
+## ❓ 常见问题 (FAQ)
+
+**按 `Super+V` 没反应？**
+GNOME Wayland 下由系统键绑定接管，需先运行集成脚本注册（`bash scripts/integrate_fcitx5.sh`）。注册成功后按一次应弹出「🎙️ 正在录音」通知；仍无反应时用 `echotype-linux -v daemon` 前台查看日志。
+
+**在 VMware 虚拟机里录不到声音？**
+VMware 虚拟声卡不桥接宿主机的麦克风输入（实测录音报 `主机已关闭`）。可行方案：USB 麦克风直通（虚拟机 → 可移动设备 → 连接）、物理机部署，或在 Windows 侧语音输入后复制、VM 内 `Ctrl+V` 粘贴。
+
+**识别结果不准？**
+内置 Paraformer small 量化模型精度有限，嘈杂环境影响明显；热词提升需要 transducer 引擎（当前不支持），模型升级在路线图中。
+
+**说完没有自动上屏？**
+静音自动结束需要先检测到语音（环境太静可能始终未触发判定）。可临时设置 `silence_auto_stop = false`，改用热键手动结束。
+
+**录音会泄露隐私吗？**
+录音仅存于本地内存，识别离线完成（除非配置了云端 API），磁盘不保存录音。
+
+---
+
+## 🔧 故障排查与日志
+
+```bash
+# 前台调试 (实时日志)
+echotype-linux -v daemon
+
+# systemd 服务日志
+journalctl --user -u echotype -f
+
+# 测试麦克风是否有输入 (说话时电平应明显升高)
+arecord -d 5 -f S16_LE -r 44100 -c 1 /tmp/mic.wav
+
+# 测试 Fcitx5 连通性
+echotype-linux test-fcitx
+```
+
+| 常见报错 | 原因与处理 |
+|---|---|
+| 录音报 `主机已关闭` | VMware 虚拟声卡不桥接麦克风输入 → USB 麦克风直通 / 物理机部署 |
+| `X11 server connection timed out` | 无图形会话（SSH 直连 / 登录界面）→ 在桌面会话内运行 |
+| `Fcitx5 is not running` | Fcitx5 未启动 → 先启动 Fcitx5，daemon 会自动重连 |
+| `No space left on device` | 磁盘满 → `cargo clean` / `docker system prune -af` |
+| 热键与桌面冲突 | `Super+V` 原被 GNOME「消息托盘」占用 → 集成脚本已自动让出（托盘改为 `Super+M`） |
+
+---
+
 ## 🏗️ 工作原理
 
 ```text
